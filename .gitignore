@@ -3,3 +3,6 @@
 *test-output.txt
 *_error.txt
 
+
+# Windows NUL device file (accidentally created by redirects)
+NUL
