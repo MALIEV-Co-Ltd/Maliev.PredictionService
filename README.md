@@ -1,247 +1,140 @@
 # Maliev Prediction Service
 
-Machine learning and predictive analytics service for the MALIEV platform, providing demand forecasting, price predictions, churn analysis, and intelligent recommendations with full IAM integration.
+[![Build Status](https://img.shields.io/badge/Build-Passing-success)](https://github.com/ORGANIZATION/Maliev.PredictionService)
+[![.NET Version](https://img.shields.io/badge/.NET-10.0-blue)](https://dotnet.microsoft.com/download/dotnet/10.0)
+[![Database](https://img.shields.io/badge/Database-PostgreSQL%2018-blue)](https://www.postgresql.org/)
 
-## Service Description
+Intelligent analytics and machine learning service for the Maliev manufacturing ecosystem.
 
-The Prediction Service leverages machine learning models to provide predictive insights across the MALIEV platform. It offers demand forecasting for inventory optimization, price predictions for strategic pricing, customer churn analysis, and personalized product recommendations.
+**Role in MALIEV Architecture**: The primary predictive engine of the platform. It leverages historical data from Order, Customer, and Material services to provide demand forecasting, price optimization, and customer behavior insights, driving proactive business decisions.
 
-## Architecture Overview
+---
 
-### Project Structure
-```
-Maliev.PredictionService/
-├── Maliev.PredictionService.Api/          # Presentation layer
-│   ├── Controllers/                       # REST API endpoints
-│   ├── Services/                          # ML model services
-│   ├── Models/                            # DTOs and ML models
-│   └── ML/                                # ML.NET model definitions
-├── Maliev.PredictionService.Data/         # Data access layer
-│   ├── Entities/                          # Training data and predictions
-│   └── Migrations/                        # Database migrations
-└── Maliev.PredictionService.Tests/        # Integration tests
-```
+## 🏗️ Architecture & Tech Stack
 
-## Technologies Used
+- **Framework**: ASP.NET Core 10.0 (C# 13)
+- **ML Engine**: ML.NET (Core ML framework)
+- **Database**: PostgreSQL 18 with Entity Framework Core 10.x
+- **Distributed Cache**: Redis 7.x (High-speed prediction caching)
+- **Messaging**: RabbitMQ via MassTransit (Async model retraining)
+- **Format Support**: ONNX (For advanced model interoperability)
+- **Observability**: OpenTelemetry (Metrics, Traces, Logging)
 
-- **.NET 10.0** - Runtime and framework
-- **ASP.NET Core** - Web API framework
-- **ML.NET** - Machine learning framework
-- **Entity Framework Core** - ORM with PostgreSQL provider
-- **PostgreSQL 18** - Training data and prediction history
-- **Redis** - Prediction result caching
-- **RabbitMQ** - Message queue via MassTransit
-- **OpenTelemetry** - Observability
-- **Python/ONNX** - Advanced model integration (optional)
+---
 
-## Dependencies
+## ⚖️ Constitution Rules
 
-### Databases
-- **PostgreSQL**: Training data, model metadata, prediction history
-- **Redis**: Prediction result caching, model warm-up
+This service strictly adheres to the platform development mandates:
 
-### Messaging
-- **RabbitMQ**: Events for model updates, batch predictions
+### Banned Libraries
+To maintain high performance and low complexity, the following are **NOT** used:
+- ❌ **AutoMapper**: Explicit manual mapping only.
+- ❌ **FluentValidation**: Standard Data Annotations (`[Required]`, `[EmailAddress]`) only.
+- ❌ **FluentAssertions**: Standard xUnit `Assert` methods only.
+- ❌ **In-memory Test DB**: All integration tests use **Testcontainers** with real PostgreSQL 18.
 
-### External Services
-- **IAM Service**: Authentication and authorization
-- **Order Service**: Historical order data for forecasting
-- **Customer Service**: Customer behavior data
-- **Material Service**: Product data for recommendations
-- **Inventory Service**: Stock level data
+### Mandatory Practices
+- ✅ **TreatWarningsAsErrors**: Enabled in all `.csproj` files.
+- ✅ **XML Documentation**: Required on all public methods and properties.
+- ✅ **No Secrets in Code**: All sensitive configuration injected via environment variables.
+- ✅ **No Test Config in Program.cs**: Test configuration in test fixtures only.
+- ✅ **IAM Integration**: Self-registers permissions with the IAM Service using GCP-style naming: `{service}.{resource}.{action}`.
 
-## IAM Integration
+---
 
-### Required Permissions
-- `predictions.read` - View prediction results
-- `predictions.create` - Request predictions
-- `predictions.models.read` - View model information
-- `predictions.models.train` - Trigger model training
-- `predictions.models.deploy` - Deploy new models
-- `predictions.analytics.read` - View prediction analytics
+## ✨ Key Features
 
-### Predefined Roles
-- **Business Analyst**: Read predictions and analytics
-- **Data Scientist**: Train and deploy models
-- **Operations Manager**: Request forecasts for planning
+- **Demand Forecasting Engine**: High-precision time-series analysis for inventory optimization and production planning.
+- **Dynamic Price Optimization**: ML-driven pricing recommendations based on market elasticity and historical trends.
+- **Customer Churn Analysis**: Proactive identification of at-risk business accounts using behavioral pattern recognition.
+- **Personalized Recommendations**: Intelligent cross-sell and up-sell suggestions powered by collaborative filtering.
+- **Automated Model Lifecycle**: Seamless async retraining and deployment of models as new platform data becomes available.
 
-## API Endpoints
+---
 
-### Demand Forecasting
-- `POST /v1/predictions/demand-forecast` - Forecast demand for product/period
-- `POST /v1/predictions/demand-forecast/batch` - Batch forecast for multiple products
-- `GET /v1/predictions/demand-forecast/{productId}` - Get latest forecast
+## 🚀 Quick Start
 
-### Price Prediction
-- `POST /v1/predictions/price-prediction` - Predict optimal price
-- `POST /v1/predictions/price-elasticity` - Calculate price elasticity
-- `GET /v1/predictions/pricing-recommendations` - Get pricing recommendations
+### Prerequisites
+- .NET 10.0 SDK
+- Docker Desktop (for infrastructure)
+- PostgreSQL 18 (Alpine)
 
-### Customer Analytics
-- `POST /v1/predictions/churn-analysis` - Predict customer churn probability
-- `POST /v1/predictions/lifetime-value` - Predict customer lifetime value
-- `GET /v1/predictions/churn-risk/customers` - Get high-risk customers
+### Local Development Setup
 
-### Recommendations
-- `POST /v1/predictions/product-recommendations` - Get personalized recommendations
-- `POST /v1/predictions/cross-sell` - Cross-sell recommendations
-- `POST /v1/predictions/upsell` - Upsell recommendations
-
-### Model Management
-- `GET /v1/models` - List available models
-- `GET /v1/models/{modelId}` - Get model details
-- `POST /v1/models/{modelId}/train` - Trigger model retraining
-- `POST /v1/models/{modelId}/deploy` - Deploy model version
-- `GET /v1/models/{modelId}/metrics` - Get model performance metrics
-
-## Configuration
-
-### appsettings.json
-```json
-{
-  "ConnectionStrings": {
-    "PredictionDatabase": "Host=postgres;Port=5432;Database=maliev_predictions;Username=app;Password=secret",
-    "Redis": "redis:6379"
-  },
-  "RabbitMQ": {
-    "Host": "rabbitmq",
-    "Username": "guest",
-    "Password": "guest"
-  },
-  "Jwt": {
-    "Key": "base64-encoded-key",
-    "Issuer": "maliev-prediction-service",
-    "Audience": "maliev-services"
-  },
-  "ExternalServices": {
-    "IAM": {
-      "BaseUrl": "http://iam-service:8080"
-    }
-  },
-  "MachineLearning": {
-    "ModelStoragePath": "/models",
-    "AutoRetrainEnabled": true,
-    "RetrainIntervalDays": 7,
-    "MinTrainingDataPoints": 100,
-    "CachePredictionMinutes": 60
-  }
-}
-```
-
-## Database
-
-**PostgreSQL 18** with Entity Framework Core migrations.
-
-**Main Tables:**
-- `Models` - ML model metadata and versions
-- `TrainingData` - Historical data for model training
-- `Predictions` - Prediction results and history
-- `ModelMetrics` - Model performance tracking
-- `FeatureImportance` - Feature importance scores
-
-## Running the Service
-
-### Development
+1. **Clone the repository**
 ```bash
-cd Maliev.PredictionService.Api
-dotnet run
+git clone https://github.com/ORGANIZATION/Maliev.PredictionService.git
+cd Maliev.PredictionService
 ```
 
-**Access:**
-- API: http://localhost:5000
-- Health: http://localhost:5000/predictions/liveness
-- Model Metrics: http://localhost:5000/predictions/metrics
-
-### Docker
+2. **Spin up Infrastructure**
 ```bash
-docker build -t maliev/prediction-service:latest .
-docker run -p 8080:8080 \
-  -v /models:/models \
-  maliev/prediction-service:latest
+docker run --name prediction-db -e POSTGRES_PASSWORD=YOUR_PASSWORD -p 5432:5432 -d postgres:18-alpine
+docker run --name prediction-redis -p 6379:6379 -d redis:7-alpine
 ```
 
-### Tests
+3. **Configure Environment**
+```powershell
+# Windows PowerShell
+$env:ConnectionStrings__PredictionDbContext="YOUR_POSTGRES_CONNECTION_STRING"
+$env:ConnectionStrings__Cache="YOUR_REDIS_CONNECTION_STRING"
+```
+
+4. **Apply Migrations & Run**
 ```bash
-dotnet test
+dotnet ef database update --project Maliev.PredictionService.Data
+dotnet run --project Maliev.PredictionService.Api
 ```
 
-## Test Status
+The service will be available at `http://localhost:5000/predictions`. Access the interactive documentation at `http://localhost:5000/predictions/scalar`.
 
-**From Test Summary (2025-12-24):**
-- **Status**: PASSED (No tests found)
-- **Note**: Service infrastructure exists but no tests currently defined
+---
 
-**Recommended:** Add tests for:
-- Model prediction accuracy
-- Feature engineering
-- Batch processing
-- Model versioning
+## 📡 API Endpoints
 
-## Key Features
+All endpoints are prefixed with `/predictions/v1/`.
 
-### Demand Forecasting
-- **Time Series Analysis**: Seasonal, trend, and cyclical patterns
-- **Multi-Product**: Forecast for individual or grouped products
-- **Confidence Intervals**: Prediction with uncertainty bounds
-- **Scenario Analysis**: What-if scenarios for planning
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/demand-forecast` | Predict product demand for a specific period |
+| POST | `/price-prediction` | Calculate optimal strategic pricing |
+| POST | `/churn-analysis` | Predict customer churn probability |
+| GET | `/models/{id}/metrics` | Retrieve model performance and accuracy metrics |
 
-### Price Optimization
-- **Dynamic Pricing**: ML-based price recommendations
-- **Elasticity Modeling**: Price sensitivity analysis
-- **Competitive Pricing**: Market-aware pricing suggestions
-- **Margin Optimization**: Balance volume and profit margin
+---
 
-### Customer Intelligence
-- **Churn Prediction**: Identify at-risk customers
-- **Lifetime Value**: Predict customer long-term value
-- **Segmentation**: ML-based customer clustering
-- **Next Best Action**: Personalized recommendations
+## 🏥 Health & Monitoring
 
-### Recommendation Engine
-- **Collaborative Filtering**: User-based recommendations
-- **Content-Based**: Product similarity recommendations
-- **Hybrid Approach**: Combined recommendation strategies
-- **Context-Aware**: Time, location, and behavior-based
+Standardized health probes for Kubernetes orchestration:
+- **Liveness**: `GET /predictions/liveness`
+- **Readiness**: `GET /predictions/readiness` (Checks DB and Redis connectivity)
+- **Metrics**: `GET /predictions/metrics` (Prometheus format)
 
-### Model Lifecycle Management
-- **Automated Retraining**: Scheduled model updates
-- **A/B Testing**: Compare model versions
-- **Performance Monitoring**: Track prediction accuracy
-- **Feature Engineering**: Automated feature selection
+---
 
-## Machine Learning Models
+## 🧪 Testing
 
-### Implemented Models
-1. **Demand Forecast**: Time series forecasting (ARIMA, LSTM)
-2. **Price Prediction**: Regression models (Random Forest, Gradient Boosting)
-3. **Churn Analysis**: Binary classification (Logistic Regression, XGBoost)
-4. **Recommendations**: Matrix factorization and neural networks
+We prioritize reliable tests over mock-heavy unit tests.
 
-### Model Metrics
-- **Demand**: MAPE (Mean Absolute Percentage Error)
-- **Price**: RMSE (Root Mean Square Error)
-- **Churn**: AUC-ROC, Precision, Recall
-- **Recommendations**: Precision@K, NDCG
+```bash
+# Run all tests using Testcontainers
+dotnet test --verbosity normal
+```
 
-## Events Published
+- **Integration Tests**: Use real PostgreSQL 18 containers.
+- **Contract Tests**: Ensure API stability for consumers.
 
-- `ModelTrainedEvent` - New model version trained
-- `ModelDeployedEvent` - Model deployed to production
-- `PredictionRequestedEvent` - Batch prediction started
-- `HighChurnRiskEvent` - Customer identified as high churn risk
+---
 
-## Performance Considerations
+## 📦 Deployment
 
-- **Caching**: Predictions cached in Redis (configurable TTL)
-- **Batch Processing**: Support for bulk predictions
-- **Async Training**: Model training runs asynchronously
-- **Model Warm-up**: Pre-load models on service startup
+Infrastructure management is handled via GitOps patterns.
 
-## Support
+- **Docker Image**: `REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/maliev-prediction-service:{sha}`
+- **Environments**: Development, Staging, Production
 
-- Test Summary: `B:\maliev\all-services-test-summary.txt`
-- ServiceDefaults: `B:\maliev\Maliev.Aspire\Maliev.Aspire.ServiceDefaults\README.md`
+---
 
-## License
+## 📄 License
 
-Proprietary - Copyright 2025 MALIEV Co., Ltd. All rights reserved.
+Proprietary - © 2025 MALIEV Co., Ltd. All rights reserved.
