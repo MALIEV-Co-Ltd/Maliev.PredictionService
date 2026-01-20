@@ -42,14 +42,14 @@ jobs:
           echo "Switched to PackageReference for ServiceDefaults and MessagingContracts"
 
       - name: Restore dependencies
-        run: dotnet restore Maliev.PredictionService.sln
+        run: dotnet restore Maliev.PredictionService.slnx
         env:
           NUGET_USERNAME: ${{ github.actor }}
           NUGET_PASSWORD: ${{ secrets.GITOPS_PAT }}
 
       - name: Build
-        run: dotnet build Maliev.PredictionService.sln --no-restore --configuration Release
+        run: dotnet build Maliev.PredictionService.slnx --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test Maliev.PredictionService.sln --no-build --configuration Release --verbosity normal
+        run: dotnet test Maliev.PredictionService.slnx --no-build --configuration Release --verbosity normal
         working-directory: ${{ github.workspace }}
