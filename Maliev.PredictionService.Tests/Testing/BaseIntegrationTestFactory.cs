@@ -37,7 +37,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     private static RabbitMqContainer? _rabbitmqContainer;
     private static bool _containersStarted;
     private static readonly SemaphoreSlim _initLock = new(1, 1);
-    
+
     private readonly RSA _testRsa;
 
     /// <summary>
@@ -57,20 +57,17 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
     public async Task InitializeAsync()
     {
         await _initLock.WaitAsync();
-        try 
+        try
         {
             if (!_containersStarted)
             {
-                _postgresContainer = new PostgreSqlBuilder()
-                    .WithImage("postgres:18-alpine")
+                _postgresContainer = new PostgreSqlBuilder().WithName("postgres:18-alpine")
                     .Build();
 
-                _redisContainer = new RedisBuilder()
-                    .WithImage("redis:8.4-alpine")
+                _redisContainer = new RedisBuilder().WithName("redis:8.4-alpine")
                     .Build();
 
-                _rabbitmqContainer = new RabbitMqBuilder()
-                    .WithImage("rabbitmq:4.2-alpine")
+                _rabbitmqContainer = new RabbitMqBuilder().WithName("rabbitmq:4.2-alpine")
                     .Build();
 
                 // Start all containers in parallel
@@ -83,7 +80,7 @@ public class BaseIntegrationTestFactory<TProgram, TDbContext> : WebApplicationFa
                 // Ensure PostgreSQL is fully ready and accepting connections
                 var postgresReady = false;
                 var retryCount = 0;
-                const int maxRetries = 60; 
+                const int maxRetries = 60;
                 while (!postgresReady && retryCount < maxRetries)
                 {
                     try
