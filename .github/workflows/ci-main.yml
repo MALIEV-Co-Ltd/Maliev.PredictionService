@@ -38,6 +38,18 @@ jobs:
       - name: Build
         run: dotnet build Maliev.PredictionService.slnx --no-restore
 
+      - name: Install Intel MKL dependencies for ML.NET
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y intel-mkl-2020.4-912 libgomp1 || true
+          # Install MKL from conda as fallback
+          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+          bash miniconda.sh -b -p $HOME/miniconda
+          export PATH="$HOME/miniconda/bin:$PATH"
+          conda install -c intel mkl mkl-service -y || true
+          # Add MKL libraries to LD_LIBRARY_PATH
+          echo "LD_LIBRARY_PATH=$HOME/miniconda/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
       - name: Test
         run: dotnet test Maliev.PredictionService.slnx --no-build --verbosity normal
         working-directory: ${{ github.workspace }}
