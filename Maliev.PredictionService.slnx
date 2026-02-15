@@ -1,3 +1,8 @@
 <Solution>
   <Project Path="Maliev.PredictionService.Api/Maliev.PredictionService.Api.csproj" />
+  <Project Path="Maliev.PredictionService.Application/Maliev.PredictionService.Application.csproj" />
+  <Project Path="Maliev.PredictionService.Domain/Maliev.PredictionService.Domain.csproj" />
+  <Project Path="Maliev.PredictionService.Infrastructure/Maliev.PredictionService.Infrastructure.csproj" />
+  <Project Path="Maliev.PredictionService.IntegrationTests/Maliev.PredictionService.IntegrationTests.csproj" />
+  <Project Path="Maliev.PredictionService.UnitTests/Maliev.PredictionService.UnitTests.csproj" />
 </Solution>

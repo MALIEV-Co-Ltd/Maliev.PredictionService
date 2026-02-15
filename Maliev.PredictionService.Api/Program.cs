@@ -1,41 +1,63 @@
+using Maliev.Aspire.ServiceDefaults;
+using Maliev.PredictionService.Api.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// --- Infrastructure & Observability ---
+builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+
+// --- PredictionService Dependencies ---
+builder.Services.AddPredictionService(builder.Configuration);
+
+// --- API Infrastructure ---
+builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+// --- Authentication & Authorization ---
+// JWT Authentication with permission-based authorization (AddJwtAuthentication includes AddPermissionAuthorization)
+builder.AddJwtAuthentication();
+
+// --- API Configuration ---
+builder.AddDefaultApiVersioning(); // API versioning with URL segment reader (FR-051)
+
+// CORS (if needed)
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// --- Middleware Pipeline ---
+
+// Map health check and metrics endpoints via ServiceDefaults
+app.MapDefaultEndpoints("predictionservice");
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
-
-var summaries = new[]
+if (!app.Environment.IsDevelopment())
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    app.UseHttpsRedirection();
+}
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.UseCors();
+
+// Authentication & Authorization
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Map controllers
+app.MapControllers();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+// Make Program accessible to integration tests
+public partial class Program { }

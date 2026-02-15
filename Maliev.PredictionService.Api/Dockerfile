@@ -3,9 +3,13 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy nuget.config and project files
+# Copy nuget.config and all project files for proper restore
 COPY nuget.config ./
+COPY ["Maliev.PredictionService.slnx", "./"]
 COPY ["Maliev.PredictionService.Api/Maliev.PredictionService.Api.csproj", "Maliev.PredictionService.Api/"]
+COPY ["Maliev.PredictionService.Application/Maliev.PredictionService.Application.csproj", "Maliev.PredictionService.Application/"]
+COPY ["Maliev.PredictionService.Domain/Maliev.PredictionService.Domain.csproj", "Maliev.PredictionService.Domain/"]
+COPY ["Maliev.PredictionService.Infrastructure/Maliev.PredictionService.Infrastructure.csproj", "Maliev.PredictionService.Infrastructure/"]
 
 # Restore dependencies with private NuGet feed credentials
 RUN --mount=type=secret,id=nuget_username \
@@ -45,6 +49,6 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:8080/prediction/liveness || exit 1
+  CMD curl -f http://localhost:8080/predictionservice/liveness || exit 1
 
 ENTRYPOINT ["dotnet", "Maliev.PredictionService.Api.dll"]
