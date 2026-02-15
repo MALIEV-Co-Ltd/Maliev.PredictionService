@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Maliev.Aspire.ServiceDefaults.Authorization;
 using Maliev.PredictionService.Api.Authorization;
+using Maliev.PredictionService.Api.Validation;
 using Maliev.PredictionService.Application.Commands;
 using Maliev.PredictionService.Application.Commands.Predictions;
 using Maliev.PredictionService.Application.DTOs.Requests;
@@ -95,7 +96,7 @@ public class PredictionsController : ControllerBase
     /// <response code="503">Service unavailable - no active model deployed.</response>
     [HttpPost("print-time")]
     [RequirePermission(PredictionPermissions.PredictionsCreate)]
-    [EnableRateLimiting("fixed")]
+    [EnableRateLimiting("predictions")]
     [Consumes("multipart/form-data")]
     [Produces("application/json")]
     [ProducesResponseType(typeof(PredictionResponse), StatusCodes.Status200OK)]
@@ -105,10 +106,10 @@ public class PredictionsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> PredictPrintTime(
-        [FromForm, Required] IFormFile geometryFile,
-        [FromForm, Required] string materialType,
+        [FromForm, Required, ValidFile(MaxFileSize = 50 * 1024 * 1024, AllowedExtensions = new[] { ".stl" }, AllowedContentTypes = new[] { "application/octet-stream", "application/sla", "model/stl", "model/x.stl-binary" })] IFormFile geometryFile,
+        [FromForm, Required, SanitizedString(MaxLength = 50)] string materialType,
         [FromForm, Required, Range(0.1, 20.0)] float materialDensity,
-        [FromForm, Required] string printerType,
+        [FromForm, Required, SanitizedString(MaxLength = 100)] string printerType,
         [FromForm, Required, Range(1, 500)] float printSpeed,
         [FromForm, Required, Range(0.05, 1.0)] float layerHeight,
         [FromForm, Required, Range(150, 300)] float nozzleTemperature,
@@ -248,7 +249,7 @@ public class PredictionsController : ControllerBase
     /// <response code="503">Service unavailable - no active model deployed.</response>
     [HttpPost("demand-forecast")]
     [RequirePermission(PredictionPermissions.PredictionsCreate)]
-    [EnableRateLimiting("fixed")]
+    [EnableRateLimiting("predictions")]
     [Consumes("application/json")]
     [Produces("application/json")]
     [ProducesResponseType(typeof(PredictionResponse), StatusCodes.Status200OK)]

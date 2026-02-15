@@ -37,4 +37,10 @@ public interface IModelRepository
     /// Deletes a model (soft delete by setting status to Archived).
     /// </summary>
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets models that are stale and need retraining.
+    /// A model is considered stale if it was trained before the specified threshold date.
+    /// </summary>
+    Task<List<MLModel>> GetStaleModelsAsync(DateTime trainedBeforeDate, CancellationToken cancellationToken = default);
 }

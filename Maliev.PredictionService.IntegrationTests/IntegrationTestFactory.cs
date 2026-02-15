@@ -185,6 +185,8 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
 
         builder.UseSetting("ConnectionStrings:redis", _redisContainer.GetConnectionString());
 
+        builder.UseSetting("BackgroundServices:Disabled", "true"); // Disable background services during tests
+
 
 
         builder.ConfigureTestServices(services =>

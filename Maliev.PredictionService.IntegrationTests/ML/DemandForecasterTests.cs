@@ -1,6 +1,8 @@
 using Maliev.PredictionService.Application.DTOs.ML;
 using Maliev.PredictionService.Domain.Enums;
+using Maliev.PredictionService.Infrastructure.Caching;
 using Maliev.PredictionService.Infrastructure.ML.Predictors;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.ML;
@@ -25,7 +27,13 @@ public class DemandForecasterTests : IDisposable
     {
         _mlContext = new MLContext(seed: 42);
         var logger = new NullLogger<DemandForecaster>();
-        _forecaster = new DemandForecaster(logger);
+
+        // Create memory cache for model caching
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var cacheLogger = new NullLogger<ModelCacheService>();
+        var modelCache = new ModelCacheService(memoryCache, cacheLogger);
+
+        _forecaster = new DemandForecaster(logger, modelCache);
 
         // Test model path - each test trains its own model
         _testModelPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "demand-forecast-test-model.zip");

@@ -101,6 +101,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
                 builder.UseEnvironment("Test");
                 builder.UseSetting("ConnectionStrings:redis", _redisContainer.GetConnectionString());
                 builder.UseSetting("ConnectionStrings:rabbitmq", "localhost"); // Placeholder or actual if needed
+                builder.UseSetting("BackgroundServices:Disabled", "true"); // Disable background services during tests
             });
 
         _client = _factory.CreateClient();

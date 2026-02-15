@@ -1,6 +1,8 @@
+using Maliev.PredictionService.Infrastructure.Caching;
 using Maliev.PredictionService.Infrastructure.ML.FeatureEngineering;
 using Maliev.PredictionService.Infrastructure.ML.Predictors;
 using Maliev.PredictionService.Infrastructure.ML.Trainers;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.ML;
 using Xunit;
@@ -28,8 +30,13 @@ public class PrintTimePredictorTests : IDisposable
         _predictorLogger = loggerFactory.CreateLogger<PrintTimePredictor>();
         _trainerLogger = loggerFactory.CreateLogger<PrintTimeTrainer>();
 
+        // Create memory cache for model caching
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var cacheLogger = loggerFactory.CreateLogger<ModelCacheService>();
+        var modelCache = new ModelCacheService(memoryCache, cacheLogger);
+
         _featureExtractor = new GeometryFeatureExtractor();
-        _predictor = new PrintTimePredictor(_predictorLogger, _featureExtractor);
+        _predictor = new PrintTimePredictor(_predictorLogger, _featureExtractor, modelCache);
         _trainer = new PrintTimeTrainer(_trainerLogger);
     }
 

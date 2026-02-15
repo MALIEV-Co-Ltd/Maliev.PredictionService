@@ -103,4 +103,12 @@ public class ModelRepository : IModelRepository
             await _context.SaveChangesAsync(cancellationToken);
         }
     }
+
+    public async Task<List<MLModel>> GetStaleModelsAsync(DateTime trainedBeforeDate, CancellationToken cancellationToken = default)
+    {
+        return await _context.MLModels
+            .Where(m => m.Status == ModelStatus.Active && m.TrainingDate < trainedBeforeDate)
+            .OrderBy(m => m.TrainingDate) // Oldest first
+            .ToListAsync(cancellationToken);
+    }
 }

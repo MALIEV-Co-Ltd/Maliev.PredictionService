@@ -1,5 +1,6 @@
 using Maliev.PredictionService.Application.DTOs.ML;
 using Maliev.PredictionService.Application.Interfaces;
+using Maliev.PredictionService.Infrastructure.Caching;
 using Maliev.PredictionService.Infrastructure.ML.FeatureEngineering;
 using Microsoft.Extensions.Logging;
 using Microsoft.ML;
@@ -37,10 +38,12 @@ public class DemandForecaster : IDemandForecaster
     private readonly ILogger<DemandForecaster> _logger;
     private readonly MLContext _mlContext;
     private readonly TimeSeriesTransformer _featureTransformer;
+    private readonly ModelCacheService _modelCache;
 
-    public DemandForecaster(ILogger<DemandForecaster> logger)
+    public DemandForecaster(ILogger<DemandForecaster> logger, ModelCacheService modelCache)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _modelCache = modelCache ?? throw new ArgumentNullException(nameof(modelCache));
         _mlContext = new MLContext(seed: 42);
         _featureTransformer = new TimeSeriesTransformer();
     }
@@ -56,31 +59,19 @@ public class DemandForecaster : IDemandForecaster
     }
 
     /// <summary>
-    /// Load SSA model from disk.
+    /// Load SSA model from cache or disk.
+    /// Uses ModelCacheService to avoid repeated disk I/O.
     /// </summary>
     public async Task<ITransformer> LoadModelAsync(string modelPath, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(modelPath))
-            throw new ArgumentException("Model path cannot be null or empty", nameof(modelPath));
-
-        if (!File.Exists(modelPath))
-            throw new FileNotFoundException($"Model file not found: {modelPath}");
-
         _logger.LogInformation("Loading demand forecast SSA model from {ModelPath}", modelPath);
 
-        // Load model in background thread to avoid blocking
-        return await Task.Run(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
+        // Use cache to load model (will load from disk if not cached)
+        var model = await _modelCache.GetOrLoadModelAsync(modelPath, cancellationToken);
 
-            using var stream = File.OpenRead(modelPath);
-            var model = _mlContext.Model.Load(stream, out var modelInputSchema);
+        _logger.LogInformation("Demand forecast model ready for predictions");
 
-            _logger.LogInformation("Successfully loaded demand forecast model. Input schema columns: {ColumnCount}",
-                modelInputSchema.Count);
-
-            return model;
-        }, cancellationToken);
+        return model;
     }
 
     /// <summary>

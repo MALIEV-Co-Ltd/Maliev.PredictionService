@@ -1,3 +1,4 @@
+using Maliev.PredictionService.Infrastructure.Caching;
 using Maliev.PredictionService.Infrastructure.ML.FeatureEngineering;
 using Maliev.PredictionService.Infrastructure.ML.Trainers;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ public class PrintTimePredictor
     private readonly MLContext _mlContext;
     private readonly ILogger<PrintTimePredictor> _logger;
     private readonly GeometryFeatureExtractor _featureExtractor;
+    private readonly ModelCacheService _modelCache;
 
     private const long MaxFileSizeBytes = 50 * 1024 * 1024; // 50 MB
     private static readonly HashSet<string> SupportedFormats = new(StringComparer.OrdinalIgnoreCase)
@@ -23,11 +25,13 @@ public class PrintTimePredictor
 
     public PrintTimePredictor(
         ILogger<PrintTimePredictor> logger,
-        GeometryFeatureExtractor featureExtractor)
+        GeometryFeatureExtractor featureExtractor,
+        ModelCacheService modelCache)
     {
         _mlContext = new MLContext(seed: 42);
         _logger = logger;
         _featureExtractor = featureExtractor;
+        _modelCache = modelCache ?? throw new ArgumentNullException(nameof(modelCache));
     }
 
     /// <summary>
@@ -57,7 +61,8 @@ public class PrintTimePredictor
     }
 
     /// <summary>
-    /// Loads trained model from file system.
+    /// Loads trained model from cache or file system.
+    /// Uses ModelCacheService to avoid repeated disk I/O.
     /// </summary>
     /// <param name="modelFilePath">Path to the trained .zip model file.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -66,17 +71,10 @@ public class PrintTimePredictor
         string modelFilePath,
         CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(modelFilePath))
-        {
-            throw new FileNotFoundException($"Model file not found: {modelFilePath}");
-        }
-
         _logger.LogInformation("Loading print time model from {FilePath}", modelFilePath);
 
-        var model = await Task.Run(() =>
-        {
-            return _mlContext.Model.Load(modelFilePath, out var modelSchema);
-        }, cancellationToken);
+        // Use cache to load model (will load from disk if not cached)
+        var model = await _modelCache.GetOrLoadModelAsync(modelFilePath, cancellationToken);
 
         var predictionEngine = _mlContext.Model.CreatePredictionEngine<
             PrintTimeTrainer.PrintTimeInput,
