@@ -1,0 +1,68 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# IDE & Editor files
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*.user
+*.suo
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+**/*test-output.txt
+
+# Documentation & Specs
+README.md
+specs/
+docs/
+*.md
+!Dockerfile*.md
+
+# CI/CD
+.github/
+.azure/
+azure-pipelines*.yml
+.gitlab-ci.yml
+
+# Environment & Secrets
+.env*
+!.env.example
+**/*.Local.json
+appsettings.Development.json
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak

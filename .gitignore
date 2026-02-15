@@ -1,0 +1,68 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Ll]og/
+[Ll]ogs/
+
+# IDE files
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*.user
+*.suo
+*.userprefs
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+artifacts/
+
+# Environment & Secrets
+.env*
+!.env.example
+appsettings.Local.json
+
+# OS files
+.DS_Store
+Thumbs.db
+NUL
+
+# Temporary & Logs
+*.log
+*.bak
+*.tmp
+*.temp
+build_errors.txt
+
+# Test Artifacts
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+*test-output.txt
+*_error.txt
+
+# Repository Specific
+.claude/settings.local.json
+.gemini/settings.local.json
+
+# OpenAPI & Documentation
+*-openapi.json
+*-openapi-*.json
+
+# Enforced Rules (User Request)
+appsettings.Development.json
+docker-compose*.yml
+docker-compose.override.yml
