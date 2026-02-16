@@ -2,13 +2,16 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Maliev.PredictionService.Infrastructure.Storage;
 
 /// <summary>
-/// Model storage implementation that uses maliev.uploadservice microservice
+/// Model storage implementation that uses Maliev.UploadService microservice
 /// for all file upload/download operations.
+///
+/// Authentication: Service-to-service JWT tokens
+/// Base Route: /upload/v1/
 /// </summary>
 public class UploadServiceModelStorageService : IModelStorageService
 {
@@ -39,7 +42,7 @@ public class UploadServiceModelStorageService : IModelStorageService
         }
 
         var fileName = $"{modelId}.zip";
-        var storagePath = GetStoragePath(modelType, fileName);
+        var storagePath = GetStoragePath(modelType, modelId);
 
         _logger.LogInformation(
             "Uploading model via UploadService. Path: {Path}, ModelId: {ModelId}, ModelType: {ModelType}",
@@ -54,30 +57,33 @@ public class UploadServiceModelStorageService : IModelStorageService
 
             // Add file content
             var fileContent = new StreamContent(fileStream);
-            fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-            content.Add(fileContent, "file", fileName);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
+            content.Add(fileContent, "File", fileName);
 
-            // Add metadata
-            content.Add(new StringContent(storagePath), "path");
-            content.Add(new StringContent(modelType), "category");
-            content.Add(new StringContent("ml-model"), "type");
+            // Add form fields (matches UploadFileRequest)
+            content.Add(new StringContent(storagePath), "Path");
+            content.Add(new StringContent("PredictionService"), "ServiceName");
+            content.Add(new StringContent("true"), "Overwrite"); // Allow overwriting for model updates
 
-            var response = await _httpClient.PostAsync("/api/v1/files/upload", content, cancellationToken);
+            // POST /upload/v1/uploads
+            var response = await _httpClient.PostAsync("/upload/v1/uploads", content, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<UploadResponse>(cancellationToken: cancellationToken);
 
-            if (result == null || string.IsNullOrEmpty(result.Url))
+            if (result == null || string.IsNullOrEmpty(result.UploadId))
             {
                 throw new InvalidOperationException("Upload service returned invalid response.");
             }
 
             _logger.LogInformation(
-                "Model uploaded successfully. StorageUri: {StorageUri}, Size: {Size} bytes",
-                result.Url,
-                new FileInfo(modelPath).Length);
+                "Model uploaded successfully. UploadId: {UploadId}, StoragePath: {StoragePath}, Size: {Size} bytes",
+                result.UploadId,
+                result.StoragePath,
+                result.FileSize);
 
-            return result.Url;
+            // Return storage path as URI for consistency with interface
+            return $"upload://{result.UploadId}";
         }
         catch (HttpRequestException ex)
         {
@@ -101,54 +107,78 @@ public class UploadServiceModelStorageService : IModelStorageService
     public async Task<string> DownloadModelAsync(Guid modelId, string modelType, CancellationToken cancellationToken = default)
     {
         var fileName = $"{modelId}.zip";
-        var storagePath = GetStoragePath(modelType, fileName);
-        var tempPath = Path.Combine(Path.GetTempPath(), fileName);
+        var storagePath = GetStoragePath(modelType, modelId);
+        var tempPath = Path.Combine(Path.GetTempPath(), "predictionservice", fileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
 
         _logger.LogInformation(
-            "Downloading model from UploadService. Path: {Path}, TempPath: {TempPath}",
-            storagePath,
-            tempPath);
+            "Downloading model from UploadService. ModelId: {ModelId}, Path: {Path}",
+            modelId,
+            storagePath);
 
         try
         {
-            // URL encode the storage path
-            var encodedPath = Uri.EscapeDataString(storagePath);
-            var response = await _httpClient.GetAsync($"/api/v1/files/download?path={encodedPath}", cancellationToken);
+            // Step 1: Query to find UploadId by storage path
+            var queryResponse = await _httpClient.GetAsync(
+                $"/upload/v1/files?pathPrefix={Uri.EscapeDataString(storagePath)}&pageSize=1",
+                cancellationToken);
 
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            if (!queryResponse.IsSuccessStatusCode)
             {
-                _logger.LogWarning(
-                    "Model not found in UploadService. Path: {Path}, ModelId: {ModelId}",
-                    storagePath,
-                    modelId);
+                _logger.LogWarning("Model not found in UploadService. Path: {Path}", storagePath);
                 throw new FileNotFoundException($"Model not found in storage: {modelId}");
             }
 
-            response.EnsureSuccessStatusCode();
+            var queryResult = await queryResponse.Content.ReadFromJsonAsync<QueryFilesResponse>(cancellationToken: cancellationToken);
+            var fileMetadata = queryResult?.Files?.FirstOrDefault();
+
+            if (fileMetadata == null)
+            {
+                _logger.LogWarning("Model not found in UploadService. Path: {Path}", storagePath);
+                throw new FileNotFoundException($"Model not found in storage: {modelId}");
+            }
+
+            // Step 2: Generate signed URL for download
+            var signedUrlRequest = new GenerateSignedUrlRequest { ExpirationMinutes = 60 };
+            var signedUrlResponse = await _httpClient.PostAsJsonAsync(
+                $"/upload/v1/files/{fileMetadata.UploadId}/signed-url",
+                signedUrlRequest,
+                cancellationToken);
+
+            signedUrlResponse.EnsureSuccessStatusCode();
+
+            var signedUrlResult = await signedUrlResponse.Content.ReadFromJsonAsync<SignedUrlResponse>(cancellationToken: cancellationToken);
+
+            if (signedUrlResult == null || string.IsNullOrEmpty(signedUrlResult.SignedUrl))
+            {
+                throw new InvalidOperationException("Failed to generate signed URL for download.");
+            }
+
+            // Step 3: Download from GCS using signed URL
+            using var downloadClient = new HttpClient(); // Don't use authenticated client for GCS
+            var downloadResponse = await downloadClient.GetAsync(signedUrlResult.SignedUrl, cancellationToken);
+            downloadResponse.EnsureSuccessStatusCode();
 
             await using var fileStream = File.Create(tempPath);
-            await response.Content.CopyToAsync(fileStream, cancellationToken);
+            await downloadResponse.Content.CopyToAsync(fileStream, cancellationToken);
 
             _logger.LogInformation(
-                "Model downloaded successfully. ModelId: {ModelId}, LocalPath: {LocalPath}",
+                "Model downloaded successfully. ModelId: {ModelId}, LocalPath: {LocalPath}, Size: {Size} bytes",
                 modelId,
-                tempPath);
+                tempPath,
+                fileStream.Length);
 
             return tempPath;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            _logger.LogWarning(
-                "Model not found in UploadService. Path: {Path}, ModelId: {ModelId}",
-                storagePath,
-                modelId);
+            _logger.LogWarning("Model not found in UploadService. ModelId: {ModelId}", modelId);
             throw new FileNotFoundException($"Model not found in storage: {modelId}");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Failed to download model from UploadService. Path: {Path}, ModelId: {ModelId}",
-                storagePath,
+                "Failed to download model from UploadService. ModelId: {ModelId}",
                 modelId);
             throw;
         }
@@ -156,23 +186,21 @@ public class UploadServiceModelStorageService : IModelStorageService
 
     public async Task<bool> ModelExistsAsync(Guid modelId, string modelType, CancellationToken cancellationToken = default)
     {
-        var fileName = $"{modelId}.zip";
-        var storagePath = GetStoragePath(modelType, fileName);
+        var storagePath = GetStoragePath(modelType, modelId);
 
         try
         {
-            var encodedPath = Uri.EscapeDataString(storagePath);
-            var response = await _httpClient.GetAsync($"/api/v1/files/exists?path={encodedPath}", cancellationToken);
+            var response = await _httpClient.GetAsync(
+                $"/upload/v1/files?pathPrefix={Uri.EscapeDataString(storagePath)}&pageSize=1",
+                cancellationToken);
 
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            if (!response.IsSuccessStatusCode)
             {
                 return false;
             }
 
-            response.EnsureSuccessStatusCode();
-
-            var result = await response.Content.ReadFromJsonAsync<ExistsResponse>(cancellationToken: cancellationToken);
-            return result?.Exists ?? false;
+            var result = await response.Content.ReadFromJsonAsync<QueryFilesResponse>(cancellationToken: cancellationToken);
+            return result?.Files?.Any() ?? false;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -181,16 +209,15 @@ public class UploadServiceModelStorageService : IModelStorageService
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Error checking if model exists in UploadService. Path: {Path}",
-                storagePath);
+                "Error checking if model exists in UploadService. ModelId: {ModelId}",
+                modelId);
             throw;
         }
     }
 
     public async Task DeleteModelAsync(Guid modelId, string modelType, CancellationToken cancellationToken = default)
     {
-        var fileName = $"{modelId}.zip";
-        var storagePath = GetStoragePath(modelType, fileName);
+        var storagePath = GetStoragePath(modelType, modelId);
 
         _logger.LogInformation(
             "Deleting model from UploadService. Path: {Path}, ModelId: {ModelId}",
@@ -199,38 +226,48 @@ public class UploadServiceModelStorageService : IModelStorageService
 
         try
         {
-            var encodedPath = Uri.EscapeDataString(storagePath);
-            var response = await _httpClient.DeleteAsync($"/api/v1/files?path={encodedPath}", cancellationToken);
+            // Step 1: Find UploadId by storage path
+            var queryResponse = await _httpClient.GetAsync(
+                $"/upload/v1/files?pathPrefix={Uri.EscapeDataString(storagePath)}&pageSize=1",
+                cancellationToken);
 
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            if (!queryResponse.IsSuccessStatusCode)
             {
-                _logger.LogWarning(
-                    "Model not found for deletion. Path: {Path}, ModelId: {ModelId}",
-                    storagePath,
-                    modelId);
-                // Don't throw - deletion is idempotent
-                return;
+                _logger.LogWarning("Model not found for deletion. Path: {Path}", storagePath);
+                return; // Deletion is idempotent
             }
 
-            response.EnsureSuccessStatusCode();
+            var queryResult = await queryResponse.Content.ReadFromJsonAsync<QueryFilesResponse>(cancellationToken: cancellationToken);
+            var fileMetadata = queryResult?.Files?.FirstOrDefault();
 
-            _logger.LogInformation(
-                "Model deleted successfully. ModelId: {ModelId}",
-                modelId);
+            if (fileMetadata == null)
+            {
+                _logger.LogWarning("Model not found for deletion. Path: {Path}", storagePath);
+                return; // Deletion is idempotent
+            }
+
+            // Step 2: Delete by UploadId
+            var deleteResponse = await _httpClient.DeleteAsync($"/upload/v1/files/{fileMetadata.UploadId}", cancellationToken);
+
+            if (deleteResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("Model not found for deletion. UploadId: {UploadId}", fileMetadata.UploadId);
+                return; // Deletion is idempotent
+            }
+
+            deleteResponse.EnsureSuccessStatusCode();
+
+            _logger.LogInformation("Model deleted successfully. ModelId: {ModelId}", modelId);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            _logger.LogWarning(
-                "Model not found for deletion. Path: {Path}, ModelId: {ModelId}",
-                storagePath,
-                modelId);
+            _logger.LogWarning("Model not found for deletion. ModelId: {ModelId}", modelId);
             // Don't throw - deletion is idempotent
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Failed to delete model from UploadService. Path: {Path}, ModelId: {ModelId}",
-                storagePath,
+                "Failed to delete model from UploadService. ModelId: {ModelId}",
                 modelId);
             throw;
         }
@@ -241,54 +278,61 @@ public class UploadServiceModelStorageService : IModelStorageService
         var prefix = $"models/{modelType}/";
         var modelIds = new List<Guid>();
 
-        _logger.LogInformation(
-            "Listing models in UploadService. Prefix: {Prefix}",
-            prefix);
+        _logger.LogInformation("Listing models in UploadService. Prefix: {Prefix}", prefix);
 
         try
         {
-            var encodedPrefix = Uri.EscapeDataString(prefix);
-            var response = await _httpClient.GetAsync($"/api/v1/files/list?prefix={encodedPrefix}", cancellationToken);
-            response.EnsureSuccessStatusCode();
+            // Query with pagination (fetch all pages if needed)
+            int page = 1;
+            const int pageSize = 100;
+            int totalPages;
 
-            var result = await response.Content.ReadFromJsonAsync<ListResponse>(cancellationToken: cancellationToken);
-
-            if (result?.Files != null)
+            do
             {
-                foreach (var file in result.Files)
+                var response = await _httpClient.GetAsync(
+                    $"/upload/v1/files?pathPrefix={Uri.EscapeDataString(prefix)}&page={page}&pageSize={pageSize}",
+                    cancellationToken);
+
+                response.EnsureSuccessStatusCode();
+
+                var result = await response.Content.ReadFromJsonAsync<QueryFilesResponse>(cancellationToken: cancellationToken);
+
+                if (result?.Files != null)
                 {
-                    // File path format: models/{modelType}/{modelId}.zip
-                    var fileName = Path.GetFileNameWithoutExtension(file.Path);
-                    if (Guid.TryParse(fileName, out var modelId))
+                    foreach (var file in result.Files)
                     {
-                        modelIds.Add(modelId);
+                        // Extract modelId from path: models/{modelType}/{modelId}.zip
+                        var fileName = Path.GetFileNameWithoutExtension(file.StoragePath);
+                        if (Guid.TryParse(fileName, out var modelId))
+                        {
+                            modelIds.Add(modelId);
+                        }
                     }
                 }
-            }
 
-            _logger.LogInformation(
-                "Listed {Count} models. ModelType: {ModelType}",
-                modelIds.Count,
-                modelType);
+                totalPages = result?.TotalPages ?? 1;
+                page++;
+
+            } while (page <= totalPages);
+
+            _logger.LogInformation("Listed {Count} models. ModelType: {ModelType}", modelIds.Count, modelType);
 
             return modelIds.AsReadOnly();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Failed to list models from UploadService. Prefix: {Prefix}",
-                prefix);
+            _logger.LogError(ex, "Failed to list models from UploadService. Prefix: {Prefix}", prefix);
             throw;
         }
     }
 
     /// <summary>
     /// Constructs the storage path for a model.
-    /// Format: models/{modelType}/{fileName}
+    /// Format: models/{modelType}/{modelId}.zip
     /// </summary>
-    private static string GetStoragePath(string modelType, string fileName)
+    private static string GetStoragePath(string modelType, Guid modelId)
     {
-        return $"models/{modelType}/{fileName}";
+        return $"models/{modelType}/{modelId}.zip";
     }
 }
 
@@ -299,52 +343,112 @@ public class UploadServiceOptions
 {
     /// <summary>
     /// Base URL for the UploadService API.
-    /// Example: https://upload.maliev.com
+    /// Example: http://upload-service (Kubernetes internal DNS)
+    /// Production: Injected via environment variable from Google Secret Manager
     /// </summary>
     public string BaseUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional: API key for authenticating with UploadService.
-    /// If not provided, assumes authentication is handled by infrastructure (e.g., service mesh).
+    /// JWT token for service-to-service authentication.
+    /// Auto-populated by ServiceDefaults from AuthService.
     /// </summary>
-    public string? ApiKey { get; set; }
+    public string? JwtToken { get; set; }
 
     /// <summary>
-    /// Request timeout in seconds. Default is 300 (5 minutes).
+    /// Request timeout in seconds. Default is 600 (10 minutes) for large file uploads.
     /// </summary>
-    public int TimeoutSeconds { get; set; } = 300;
+    public int TimeoutSeconds { get; set; } = 600;
 }
 
 /// <summary>
-/// Response model for file upload operations.
+/// Response model from POST /upload/v1/uploads
 /// </summary>
 internal class UploadResponse
 {
-    public string Url { get; set; } = string.Empty;
-    public string Path { get; set; } = string.Empty;
-    public long Size { get; set; }
+    [JsonPropertyName("uploadId")]
+    public string UploadId { get; set; } = string.Empty;
+
+    [JsonPropertyName("storagePath")]
+    public string StoragePath { get; set; } = string.Empty;
+
+    [JsonPropertyName("fileName")]
+    public string FileName { get; set; } = string.Empty;
+
+    [JsonPropertyName("fileSize")]
+    public long FileSize { get; set; }
+
+    [JsonPropertyName("uploadedAt")]
+    public DateTime UploadedAt { get; set; }
 }
 
 /// <summary>
-/// Response model for file exists check.
+/// Response model from GET /upload/v1/files (query)
 /// </summary>
-internal class ExistsResponse
+internal class QueryFilesResponse
 {
-    public bool Exists { get; set; }
-    public string? Path { get; set; }
+    [JsonPropertyName("files")]
+    public List<FileMetadataResponse>? Files { get; set; }
+
+    [JsonPropertyName("totalCount")]
+    public int TotalCount { get; set; }
+
+    [JsonPropertyName("page")]
+    public int Page { get; set; }
+
+    [JsonPropertyName("pageSize")]
+    public int PageSize { get; set; }
+
+    [JsonPropertyName("totalPages")]
+    public int TotalPages { get; set; }
 }
 
 /// <summary>
-/// Response model for file listing operations.
+/// File metadata response model
 /// </summary>
-internal class ListResponse
+internal class FileMetadataResponse
 {
-    public List<FileInfo> Files { get; set; } = new();
+    [JsonPropertyName("uploadId")]
+    public string UploadId { get; set; } = string.Empty;
 
-    public class FileInfo
-    {
-        public string Path { get; set; } = string.Empty;
-        public long Size { get; set; }
-        public DateTime CreatedAt { get; set; }
-    }
+    [JsonPropertyName("storagePath")]
+    public string StoragePath { get; set; } = string.Empty;
+
+    [JsonPropertyName("fileName")]
+    public string FileName { get; set; } = string.Empty;
+
+    [JsonPropertyName("fileSize")]
+    public long FileSize { get; set; }
+
+    [JsonPropertyName("uploadedAt")]
+    public DateTime UploadedAt { get; set; }
+
+    [JsonPropertyName("lastAccessedAt")]
+    public DateTime? LastAccessedAt { get; set; }
+}
+
+/// <summary>
+/// Request model for generating signed download URL
+/// </summary>
+internal class GenerateSignedUrlRequest
+{
+    [JsonPropertyName("expirationMinutes")]
+    public int ExpirationMinutes { get; set; } = 60;
+}
+
+/// <summary>
+/// Response model from POST /upload/v1/files/{uploadId}/signed-url
+/// </summary>
+internal class SignedUrlResponse
+{
+    [JsonPropertyName("signedUrl")]
+    public string SignedUrl { get; set; } = string.Empty;
+
+    [JsonPropertyName("expiresAt")]
+    public DateTime ExpiresAt { get; set; }
+
+    [JsonPropertyName("uploadId")]
+    public string UploadId { get; set; } = string.Empty;
+
+    [JsonPropertyName("storagePath")]
+    public string StoragePath { get; set; } = string.Empty;
 }

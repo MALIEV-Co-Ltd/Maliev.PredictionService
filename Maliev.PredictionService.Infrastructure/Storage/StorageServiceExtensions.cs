@@ -44,7 +44,7 @@ public static class StorageServiceExtensions
         {
             var section = configuration.GetSection("UploadService");
             options.BaseUrl = section["BaseUrl"] ?? string.Empty;
-            options.ApiKey = section["ApiKey"];
+            options.JwtToken = section["JwtToken"];
             if (int.TryParse(section["TimeoutSeconds"], out var timeout))
             {
                 options.TimeoutSeconds = timeout;
@@ -56,7 +56,7 @@ public static class StorageServiceExtensions
         {
             var config = configuration.GetSection("UploadService");
             var baseUrl = config["BaseUrl"];
-            var apiKey = config["ApiKey"];
+            var jwtToken = config["JwtToken"];
             var timeoutSeconds = 300; // Default timeout
             if (int.TryParse(config["TimeoutSeconds"], out var timeout))
             {
@@ -71,10 +71,10 @@ public static class StorageServiceExtensions
             client.BaseAddress = new Uri(baseUrl);
             client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
-            // Add API key header if provided
-            if (!string.IsNullOrWhiteSpace(apiKey))
+            // Add JWT Bearer token for service-to-service authentication
+            if (!string.IsNullOrWhiteSpace(jwtToken))
             {
-                client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {jwtToken}");
             }
 
             // Add standard headers
