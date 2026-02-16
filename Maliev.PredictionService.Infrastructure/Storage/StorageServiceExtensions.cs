@@ -1,5 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+// Import extension methods from Aspire ServiceDefaults
+// AddAuthenticatedServiceClient is in Microsoft.Extensions.Hosting namespace
 
 namespace Maliev.PredictionService.Infrastructure.Storage;
 
@@ -12,76 +16,65 @@ public static class StorageServiceExtensions
     /// Registers model storage services based on configuration.
     /// Uses UploadService (maliev.uploadservice microservice) in production, local file storage in development.
     /// </summary>
-    public static IServiceCollection AddModelStorage(this IServiceCollection services, IConfiguration configuration)
+    public static IHostApplicationBuilder AddModelStorage(this IHostApplicationBuilder builder)
     {
-        var storageType = configuration["ModelStorage:Type"] ?? "LocalFile";
+        var storageType = builder.Configuration["ModelStorage:Type"] ?? "LocalFile";
 
         switch (storageType.ToLowerInvariant())
         {
             case "uploadservice":
             case "cloud":
-                services.AddUploadServiceStorage(configuration);
+                builder.AddUploadServiceStorage();
                 break;
 
             case "localfile":
             case "local":
             default:
-                services.AddLocalFileStorage(configuration);
+                builder.Services.AddLocalFileStorage(builder.Configuration);
                 break;
         }
 
-        return services;
+        return builder;
     }
 
     /// <summary>
     /// Registers UploadService (maliev.uploadservice) for model storage.
     /// All file operations go through the centralized upload microservice.
+    /// Uses AddAuthenticatedServiceClient for automatic JWT token management.
     /// </summary>
-    private static IServiceCollection AddUploadServiceStorage(this IServiceCollection services, IConfiguration configuration)
+    private static IHostApplicationBuilder AddUploadServiceStorage(this IHostApplicationBuilder builder)
     {
         // Configure options
-        services.Configure<UploadServiceOptions>(options =>
+        builder.Services.Configure<UploadServiceOptions>(options =>
         {
-            var section = configuration.GetSection("UploadService");
-            options.BaseUrl = section["BaseUrl"] ?? string.Empty;
-            options.JwtToken = section["JwtToken"];
+            var section = builder.Configuration.GetSection("UploadService");
             if (int.TryParse(section["TimeoutSeconds"], out var timeout))
             {
                 options.TimeoutSeconds = timeout;
             }
         });
 
-        // Register HttpClient for UploadService
-        services.AddHttpClient<IModelStorageService, UploadServiceModelStorageService>((sp, client) =>
+        // Register authenticated HttpClient for UploadService
+        // This automatically handles JWT token generation and injection via ServiceAccountAuthenticationHandler
+        builder.AddAuthenticatedServiceClient<IModelStorageService, UploadServiceModelStorageService>(
+            serviceName: "UploadService",
+            sourceServiceName: "prediction")
+        .ConfigurePrimaryHttpMessageHandler(() =>
         {
-            var config = configuration.GetSection("UploadService");
-            var baseUrl = config["BaseUrl"];
-            var jwtToken = config["JwtToken"];
-            var timeoutSeconds = 300; // Default timeout
-            if (int.TryParse(config["TimeoutSeconds"], out var timeout))
+            return new HttpClientHandler
             {
-                timeoutSeconds = timeout;
-            }
-
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                throw new InvalidOperationException("UploadService:BaseUrl configuration is required when using UploadService storage.");
-            }
-
-            client.BaseAddress = new Uri(baseUrl);
+                MaxRequestContentBufferSize = 100 * 1024 * 1024, // 100MB for large model files
+                AllowAutoRedirect = true
+            };
+        })
+        .ConfigureHttpClient(client =>
+        {
+            var timeoutSeconds = builder.Configuration.GetValue<int>("UploadService:TimeoutSeconds", 600);
             client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-
-            // Add JWT Bearer token for service-to-service authentication
-            if (!string.IsNullOrWhiteSpace(jwtToken))
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {jwtToken}");
-            }
-
-            // Add standard headers
             client.DefaultRequestHeaders.Add("User-Agent", "Maliev.PredictionService/1.0");
         });
 
-        return services;
+        return builder;
     }
 
     /// <summary>

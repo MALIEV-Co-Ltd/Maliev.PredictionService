@@ -28,10 +28,8 @@ public class UploadServiceModelStorageService : IModelStorageService
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        if (string.IsNullOrWhiteSpace(_options.BaseUrl))
-        {
-            throw new InvalidOperationException("UploadService:BaseUrl configuration is required.");
-        }
+        // BaseUrl and authentication are now handled automatically by AddAuthenticatedServiceClient
+        // via service discovery and ServiceAccountAuthenticationHandler
     }
 
     public async Task<string> UploadModelAsync(string modelPath, Guid modelId, string modelType, CancellationToken cancellationToken = default)
@@ -338,22 +336,10 @@ public class UploadServiceModelStorageService : IModelStorageService
 
 /// <summary>
 /// Configuration options for UploadService.
+/// BaseUrl and JWT authentication are handled automatically by AddAuthenticatedServiceClient.
 /// </summary>
 public class UploadServiceOptions
 {
-    /// <summary>
-    /// Base URL for the UploadService API.
-    /// Example: http://upload-service (Kubernetes internal DNS)
-    /// Production: Injected via environment variable from Google Secret Manager
-    /// </summary>
-    public string BaseUrl { get; set; } = string.Empty;
-
-    /// <summary>
-    /// JWT token for service-to-service authentication.
-    /// Auto-populated by ServiceDefaults from AuthService.
-    /// </summary>
-    public string? JwtToken { get; set; }
-
     /// <summary>
     /// Request timeout in seconds. Default is 600 (10 minutes) for large file uploads.
     /// </summary>

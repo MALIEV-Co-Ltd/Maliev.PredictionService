@@ -1,11 +1,15 @@
 using System.Threading.RateLimiting;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.PredictionService.Api.Extensions;
+using Maliev.PredictionService.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Infrastructure & Observability ---
 builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+
+// --- Model Storage (must be before AddPredictionService) ---
+builder.AddModelStorage(); // Automatic JWT auth via ServiceAccountAuthenticationHandler
 
 // --- PredictionService Dependencies ---
 builder.Services.AddPredictionService(builder.Configuration);

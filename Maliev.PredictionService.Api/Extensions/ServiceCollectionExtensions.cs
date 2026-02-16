@@ -155,8 +155,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PrintTimeRequestValidator>();
         services.AddSingleton<DemandForecastRequestValidator>();
 
-        // Model Storage (GCS or Local File System)
-        services.AddModelStorage(configuration);
+        // Model Storage: Moved to Program.cs to use AddAuthenticatedServiceClient pattern
+        // See builder.AddModelStorage() in Program.cs
 
         // Background Services (can be disabled via configuration for testing)
         var disableBackgroundServices = configuration.GetValue<bool>("BackgroundServices:Disabled", false);
