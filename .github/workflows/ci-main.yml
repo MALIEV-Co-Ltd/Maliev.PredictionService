@@ -38,6 +38,9 @@ jobs:
       - name: Build
         run: dotnet build Maliev.PredictionService.slnx --no-restore
 
+      - name: Install Intel OpenMP Library (required for ML.NET SSA forecasting)
+        run: sudo apt-get update && sudo apt-get install -y libomp5
+
       - name: Test
         run: dotnet test Maliev.PredictionService.slnx --no-build --verbosity normal
         working-directory: ${{ github.workspace }}
