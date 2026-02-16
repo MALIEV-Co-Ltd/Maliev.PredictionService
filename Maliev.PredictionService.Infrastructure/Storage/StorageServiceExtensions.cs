@@ -1,5 +1,3 @@
-using Google.Apis.Auth.OAuth2;
-using Google.Cloud.Storage.V1;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,7 +10,7 @@ public static class StorageServiceExtensions
 {
     /// <summary>
     /// Registers model storage services based on configuration.
-    /// Uses Google Cloud Storage in production, local file storage in development.
+    /// Uses UploadService (maliev.uploadservice microservice) in production, local file storage in development.
     /// </summary>
     public static IServiceCollection AddModelStorage(this IServiceCollection services, IConfiguration configuration)
     {
@@ -20,9 +18,9 @@ public static class StorageServiceExtensions
 
         switch (storageType.ToLowerInvariant())
         {
-            case "googlecloud":
-            case "gcs":
-                services.AddGoogleCloudStorage(configuration);
+            case "uploadservice":
+            case "cloud":
+                services.AddUploadServiceStorage(configuration);
                 break;
 
             case "localfile":
@@ -36,40 +34,52 @@ public static class StorageServiceExtensions
     }
 
     /// <summary>
-    /// Registers Google Cloud Storage for model storage with sandboxed service account access.
+    /// Registers UploadService (maliev.uploadservice) for model storage.
+    /// All file operations go through the centralized upload microservice.
     /// </summary>
-    private static IServiceCollection AddGoogleCloudStorage(this IServiceCollection services, IConfiguration configuration)
+    private static IServiceCollection AddUploadServiceStorage(this IServiceCollection services, IConfiguration configuration)
     {
         // Configure options
-        services.Configure<GoogleCloudStorageOptions>(options =>
+        services.Configure<UploadServiceOptions>(options =>
         {
-            var section = configuration.GetSection("GoogleCloudStorage");
-            options.BucketName = section["BucketName"] ?? string.Empty;
-            options.ServiceAccountKeyPath = section["ServiceAccountKeyPath"];
-        });
-
-        // Register StorageClient with service account authentication
-        services.AddSingleton<StorageClient>(sp =>
-        {
-            var keyPath = configuration["GoogleCloudStorage:ServiceAccountKeyPath"];
-
-            if (!string.IsNullOrWhiteSpace(keyPath) && File.Exists(keyPath))
+            var section = configuration.GetSection("UploadService");
+            options.BaseUrl = section["BaseUrl"] ?? string.Empty;
+            options.ApiKey = section["ApiKey"];
+            if (int.TryParse(section["TimeoutSeconds"], out var timeout))
             {
-                // Use service account JSON key file (sandboxed access)
-                // Set environment variable for Google Application Default Credentials
-                Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", keyPath);
-                return StorageClient.Create();
-            }
-            else
-            {
-                // Use Application Default Credentials (ADC)
-                // In production, this will use the Compute Engine/GKE service account
-                return StorageClient.Create();
+                options.TimeoutSeconds = timeout;
             }
         });
 
-        // Register the GCS implementation
-        services.AddScoped<IModelStorageService, GoogleCloudModelStorageService>();
+        // Register HttpClient for UploadService
+        services.AddHttpClient<IModelStorageService, UploadServiceModelStorageService>((sp, client) =>
+        {
+            var config = configuration.GetSection("UploadService");
+            var baseUrl = config["BaseUrl"];
+            var apiKey = config["ApiKey"];
+            var timeoutSeconds = 300; // Default timeout
+            if (int.TryParse(config["TimeoutSeconds"], out var timeout))
+            {
+                timeoutSeconds = timeout;
+            }
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                throw new InvalidOperationException("UploadService:BaseUrl configuration is required when using UploadService storage.");
+            }
+
+            client.BaseAddress = new Uri(baseUrl);
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+
+            // Add API key header if provided
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+            }
+
+            // Add standard headers
+            client.DefaultRequestHeaders.Add("User-Agent", "Maliev.PredictionService/1.0");
+        });
 
         return services;
     }
