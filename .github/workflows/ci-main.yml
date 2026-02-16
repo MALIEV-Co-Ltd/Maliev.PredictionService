@@ -38,8 +38,19 @@ jobs:
       - name: Build
         run: dotnet build Maliev.PredictionService.slnx --no-restore
 
+      - name: Install Intel MKL Runtime (required for ML.NET SSA forecasting)
+        run: |
+          # Install Intel oneAPI Base Toolkit (includes MKL runtime)
+          wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB | sudo gpg --dearmor -o /usr/share/keyrings/intel-oneapi-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/intel-oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y intel-oneapi-mkl-core-2025.0
+
       - name: Test
-        run: dotnet test Maliev.PredictionService.slnx --no-build --verbosity normal
+        run: |
+          # Set up Intel MKL environment
+          source /opt/intel/oneapi/setvars.sh --force
+          dotnet test Maliev.PredictionService.slnx --no-build --verbosity normal
         working-directory: ${{ github.workspace }}
 
       - name: Authenticate to Google Cloud
