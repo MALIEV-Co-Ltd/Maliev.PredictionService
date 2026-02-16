@@ -50,8 +50,16 @@ jobs:
       - name: Build
         run: dotnet build ${{ inputs.solution_file }} --no-restore --configuration ${{ inputs.configuration }} ${{ inputs.extra_args }}
 
-      - name: Install Intel OpenMP Library (required for ML.NET SSA forecasting)
-        run: sudo apt-get update && sudo apt-get install -y libomp5
+      - name: Install Intel MKL Runtime (required for ML.NET SSA forecasting)
+        run: |
+          # Install Intel oneAPI Base Toolkit (includes MKL runtime)
+          wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB | sudo gpg --dearmor -o /usr/share/keyrings/intel-oneapi-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/intel-oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y intel-oneapi-mkl-core-2025.0
 
       - name: Test
-        run: dotnet test ${{ inputs.solution_file }} --no-build --configuration ${{ inputs.configuration }} --verbosity normal ${{ inputs.extra_args }}
+        run: |
+          # Set up Intel MKL environment
+          source /opt/intel/oneapi/setvars.sh --force
+          dotnet test ${{ inputs.solution_file }} --no-build --configuration ${{ inputs.configuration }} --verbosity normal ${{ inputs.extra_args }}
