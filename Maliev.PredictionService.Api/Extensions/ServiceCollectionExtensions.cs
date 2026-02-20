@@ -14,7 +14,6 @@ using Maliev.PredictionService.Domain.Services;
 using Maliev.PredictionService.Application.Interfaces;
 using Maliev.PredictionService.Application.Services;
 using Maliev.PredictionService.Application.Validators;
-using MassTransit;
 using StackExchange.Redis;
 
 namespace Maliev.PredictionService.Api.Extensions;
@@ -109,30 +108,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<CacheKeyGenerator>();
         services.AddSingleton<ICacheKeyGenerator>(sp => sp.GetRequiredService<CacheKeyGenerator>());
         services.AddSingleton<IDistributedCacheService>(sp => sp.GetRequiredService<RedisCacheService>());
-
-        // MassTransit with RabbitMQ
-        services.AddMassTransit(x =>
-        {
-            x.DisableUsageTelemetry();
-
-            // Register consumers from Infrastructure assembly
-            x.AddConsumers(typeof(Maliev.PredictionService.Infrastructure.AssemblyReference).Assembly);
-
-            x.UsingRabbitMq((context, cfg) =>
-            {
-                var rabbitMqHost = configuration.GetValue<string>("RabbitMQ:Host") ?? "localhost";
-                var rabbitMqUser = configuration.GetValue<string>("RabbitMQ:Username") ?? "guest";
-                var rabbitMqPassword = configuration.GetValue<string>("RabbitMQ:Password") ?? "guest";
-
-                cfg.Host(rabbitMqHost, "/", h =>
-                {
-                    h.Username(rabbitMqUser);
-                    h.Password(rabbitMqPassword);
-                });
-
-                cfg.ConfigureEndpoints(context);
-            });
-        });
 
         // Repositories
         services.AddScoped<IModelRepository, ModelRepository>();

@@ -2,11 +2,18 @@ using System.Threading.RateLimiting;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.PredictionService.Api.Extensions;
 using Maliev.PredictionService.Infrastructure.Storage;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Infrastructure & Observability ---
 builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+
+// --- MassTransit with RabbitMQ ---
+builder.AddMassTransitWithRabbitMq(x =>
+{
+    x.AddConsumers(typeof(Maliev.PredictionService.Infrastructure.AssemblyReference).Assembly);
+});
 
 // --- Model Storage (must be before AddPredictionService) ---
 builder.AddModelStorage(); // Automatic JWT auth via ServiceAccountAuthenticationHandler
