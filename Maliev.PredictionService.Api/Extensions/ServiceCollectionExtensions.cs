@@ -113,6 +113,8 @@ public static class ServiceCollectionExtensions
         // MassTransit with RabbitMQ
         services.AddMassTransit(x =>
         {
+            x.DisableUsageTelemetry();
+
             // Register consumers from Infrastructure assembly
             x.AddConsumers(typeof(Maliev.PredictionService.Infrastructure.AssemblyReference).Assembly);
 
