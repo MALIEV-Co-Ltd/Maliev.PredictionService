@@ -66,3 +66,4 @@ coverage/
 appsettings.Development.json
 docker-compose*.yml
 docker-compose.override.yml
+coverage.cobertura.xml
