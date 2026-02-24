@@ -82,7 +82,7 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
 
             foreach (var productId in distinctProductIds)
             {
-                await CheckAndTriggerRetrainingAsync(productId, context.CancellationToken);
+                await CheckAndTriggerRetrainingAsync(productId.ToString(), context.CancellationToken);
             }
 
             _logger.LogInformation(
@@ -110,10 +110,10 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
         var errors = new List<string>();
         var payload = message.Payload;
 
-        if (string.IsNullOrWhiteSpace(payload.OrderId))
+        if (payload.OrderId == Guid.Empty)
             errors.Add("OrderId is required");
 
-        if (string.IsNullOrWhiteSpace(payload.CustomerId))
+        if (payload.CustomerId == Guid.Empty)
             errors.Add("CustomerId is required");
 
         if (payload.Items.Count == 0)
@@ -121,7 +121,7 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
 
         foreach (var item in payload.Items)
         {
-            if (string.IsNullOrWhiteSpace(item.ProductId))
+            if (item.ProductId == Guid.Empty)
                 errors.Add($"Line item ProductId is required");
 
             if (item.Quantity <= 0)
