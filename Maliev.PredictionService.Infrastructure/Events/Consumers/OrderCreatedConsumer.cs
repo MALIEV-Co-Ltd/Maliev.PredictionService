@@ -1,3 +1,4 @@
+using Maliev.MessagingContracts.Contracts.Orders;
 using Maliev.PredictionService.Domain.Entities;
 using Maliev.PredictionService.Domain.Enums;
 using Maliev.PredictionService.Domain.Repositories;
@@ -7,25 +8,10 @@ using Microsoft.Extensions.Logging;
 namespace Maliev.PredictionService.Infrastructure.Events.Consumers;
 
 /// <summary>
-/// Event DTO for OrderCreated events.
-/// TODO: Replace with actual MessagingContracts event when available.
+/// Consumes <see cref="OrderCreatedEvent"/> to ingest order line-item data into the demand-forecasting
+/// training dataset. Implements T132-T136: event handling, validation, deduplication, retraining trigger.
 /// </summary>
-public record OrderCreated
-{
-    public required string OrderId { get; init; }
-    public required string ProductId { get; init; }
-    public required string CustomerId { get; init; }
-    public required int Quantity { get; init; }
-    public required decimal UnitPrice { get; init; }
-    public required decimal TotalPrice { get; init; }
-    public required DateTime OrderDate { get; init; }
-}
-
-/// <summary>
-/// Consumes OrderCreated events to ingest order data into training dataset.
-/// Implements T132-T136: event handling, validation, deduplication, retraining trigger.
-/// </summary>
-public class OrderCreatedConsumer : IConsumer<OrderCreated>
+public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
 {
     private readonly ILogger<OrderCreatedConsumer> _logger;
     private readonly IModelRepository _modelRepository;
@@ -33,6 +19,11 @@ public class OrderCreatedConsumer : IConsumer<OrderCreated>
 
     private const int MinimumDatasetSizeForRetraining = 1000; // Trigger retraining when dataset reaches this size
 
+    /// <summary>
+    /// Initialises a new instance of <see cref="OrderCreatedConsumer"/>.
+    /// </summary>
+    /// <param name="logger">Logger instance.</param>
+    /// <param name="modelRepository">Repository for ML model access.</param>
     public OrderCreatedConsumer(
         ILogger<OrderCreatedConsumer> logger,
         IModelRepository modelRepository)
@@ -41,14 +32,18 @@ public class OrderCreatedConsumer : IConsumer<OrderCreated>
         _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
     }
 
-    public async Task Consume(ConsumeContext<OrderCreated> context)
+    /// <summary>
+    /// Handles the incoming <see cref="OrderCreatedEvent"/>.
+    /// </summary>
+    /// <param name="context">MassTransit consume context.</param>
+    public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
     {
         var message = context.Message;
-        var messageId = context.MessageId?.ToString() ?? Guid.NewGuid().ToString();
+        var messageId = message.MessageId.ToString();
 
         _logger.LogInformation(
-            "Received OrderCreated event. MessageId: {MessageId}, OrderId: {OrderId}, ProductId: {ProductId}",
-            messageId, message.OrderId, message.ProductId);
+            "Received OrderCreatedEvent. MessageId: {MessageId}, OrderId: {OrderId}, Items: {ItemCount}",
+            messageId, message.Payload.OrderId, message.Payload.Items.Count);
 
         try
         {
@@ -60,35 +55,45 @@ public class OrderCreatedConsumer : IConsumer<OrderCreated>
             }
 
             // T134: Data validation
-            var validationErrors = ValidateOrderCreatedEvent(message);
-            if (validationErrors.Any())
+            var validationErrors = ValidateEvent(message);
+            if (validationErrors.Count > 0)
             {
                 _logger.LogWarning(
-                    "Validation failed for OrderCreated event. MessageId: {MessageId}, Errors: {Errors}",
+                    "Validation failed for OrderCreatedEvent. MessageId: {MessageId}, Errors: {Errors}",
                     messageId, string.Join("; ", validationErrors));
 
                 // Don't throw - log and skip invalid events
                 return;
             }
 
-            // T133: Ingest order data into training dataset
-            await IngestOrderDataAsync(message, context.CancellationToken);
+            // T133: Ingest each order line item into training dataset
+            foreach (var item in message.Payload.Items)
+            {
+                await IngestLineItemAsync(item, message.Payload, context.CancellationToken);
+            }
 
             // Mark message as processed (deduplication)
             _processedMessageIds.Add(messageId);
 
-            // T136: Check if we should trigger model retraining
-            await CheckAndTriggerRetrainingAsync(message.ProductId, context.CancellationToken);
+            // T136: Check if we should trigger model retraining (per distinct product)
+            var distinctProductIds = message.Payload.Items
+                .Select(i => i.ProductId)
+                .Distinct();
+
+            foreach (var productId in distinctProductIds)
+            {
+                await CheckAndTriggerRetrainingAsync(productId, context.CancellationToken);
+            }
 
             _logger.LogInformation(
-                "Successfully processed OrderCreated event. MessageId: {MessageId}, OrderId: {OrderId}",
-                messageId, message.OrderId);
+                "Successfully processed OrderCreatedEvent. MessageId: {MessageId}, OrderId: {OrderId}",
+                messageId, message.Payload.OrderId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Error processing OrderCreated event. MessageId: {MessageId}, OrderId: {OrderId}",
-                messageId, message.OrderId);
+                "Error processing OrderCreatedEvent. MessageId: {MessageId}, OrderId: {OrderId}",
+                messageId, message.Payload.OrderId);
 
             // Rethrow to trigger MassTransit retry/error handling
             throw;
@@ -96,72 +101,68 @@ public class OrderCreatedConsumer : IConsumer<OrderCreated>
     }
 
     /// <summary>
-    /// T134: Validate OrderCreated event schema and data quality.
+    /// T134: Validate the <see cref="OrderCreatedEvent"/> envelope and payload.
     /// </summary>
-    private List<string> ValidateOrderCreatedEvent(OrderCreated orderEvent)
+    /// <param name="message">The event to validate.</param>
+    /// <returns>List of validation error strings; empty if valid.</returns>
+    private static List<string> ValidateEvent(OrderCreatedEvent message)
     {
         var errors = new List<string>();
+        var payload = message.Payload;
 
-        // Null checks
-        if (string.IsNullOrWhiteSpace(orderEvent.OrderId))
+        if (string.IsNullOrWhiteSpace(payload.OrderId))
             errors.Add("OrderId is required");
 
-        if (string.IsNullOrWhiteSpace(orderEvent.ProductId))
-            errors.Add("ProductId is required");
-
-        if (string.IsNullOrWhiteSpace(orderEvent.CustomerId))
+        if (string.IsNullOrWhiteSpace(payload.CustomerId))
             errors.Add("CustomerId is required");
 
-        // Range validation
-        if (orderEvent.Quantity <= 0)
-            errors.Add($"Quantity must be positive. Got: {orderEvent.Quantity}");
+        if (payload.Items.Count == 0)
+            errors.Add("Order must contain at least one line item");
 
-        if (orderEvent.UnitPrice < 0)
-            errors.Add($"UnitPrice cannot be negative. Got: {orderEvent.UnitPrice}");
-
-        if (orderEvent.TotalPrice < 0)
-            errors.Add($"TotalPrice cannot be negative. Got: {orderEvent.TotalPrice}");
-
-        // Logical validation
-        var expectedTotal = orderEvent.Quantity * orderEvent.UnitPrice;
-        if (Math.Abs(orderEvent.TotalPrice - expectedTotal) > 0.01m) // Allow small floating point differences
+        foreach (var item in payload.Items)
         {
-            errors.Add($"TotalPrice mismatch. Expected: {expectedTotal}, Got: {orderEvent.TotalPrice}");
+            if (string.IsNullOrWhiteSpace(item.ProductId))
+                errors.Add($"Line item ProductId is required");
+
+            if (item.Quantity <= 0)
+                errors.Add($"Line item Quantity must be positive. Got: {item.Quantity}");
+
+            if (item.UnitPrice < 0)
+                errors.Add($"Line item UnitPrice cannot be negative. Got: {item.UnitPrice}");
+
+            var expectedTotal = item.Quantity * item.UnitPrice;
+            if (Math.Abs(item.LineTotal - expectedTotal) > 0.01)
+                errors.Add($"Line item LineTotal mismatch for product {item.ProductId}. Expected: {expectedTotal}, Got: {item.LineTotal}");
         }
-
-        // Date validation
-        if (orderEvent.OrderDate > DateTime.UtcNow.AddDays(1))
-            errors.Add("OrderDate cannot be in the future");
-
-        if (orderEvent.OrderDate < DateTime.UtcNow.AddYears(-10))
-            errors.Add("OrderDate is too far in the past (>10 years)");
 
         return errors;
     }
 
     /// <summary>
-    /// T133: Ingest order data into training dataset for demand forecasting.
+    /// T133: Ingest a single order line item into the demand-forecasting training dataset.
     /// </summary>
-    private async Task IngestOrderDataAsync(OrderCreated orderEvent, CancellationToken cancellationToken)
+    /// <param name="item">The line item to ingest.</param>
+    /// <param name="payload">The parent order payload for context fields.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task IngestLineItemAsync(
+        OrderCreatedEventPayloadItemsItem item,
+        OrderCreatedEventPayload payload,
+        CancellationToken cancellationToken)
     {
-        // Create or update training dataset record
-        // In production, this would append to a CSV/Parquet file or database table
-        // For now, we'll create a simplified dataset record
-
         var datasetEntry = new
         {
-            ProductId = orderEvent.ProductId,
-            Date = orderEvent.OrderDate,
-            Demand = (float)orderEvent.Quantity,
-            UnitPrice = (float)orderEvent.UnitPrice,
-            CustomerId = orderEvent.CustomerId,
+            ProductId = item.ProductId,
+            Date = payload.CreatedAt,
+            Demand = (float)item.Quantity,
+            UnitPrice = (float)item.UnitPrice,
+            CustomerId = payload.CustomerId,
             IsPromotion = false, // TODO: Detect promotions from order metadata
-            IsHoliday = IsHoliday(orderEvent.OrderDate),
-            Timestamp = DateTime.UtcNow
+            IsHoliday = IsHoliday(payload.CreatedAt.UtcDateTime),
+            Timestamp = DateTimeOffset.UtcNow
         };
 
         _logger.LogDebug(
-            "Ingested order data for training. ProductId: {ProductId}, Date: {Date:yyyy-MM-dd}, Demand: {Demand}",
+            "Ingested order line item for training. ProductId: {ProductId}, Date: {Date:yyyy-MM-dd}, Demand: {Demand}",
             datasetEntry.ProductId, datasetEntry.Date, datasetEntry.Demand);
 
         // TODO: Persist to actual training dataset storage
@@ -171,14 +172,12 @@ public class OrderCreatedConsumer : IConsumer<OrderCreated>
     }
 
     /// <summary>
-    /// T136: Check if minimum dataset size reached and trigger model retraining.
+    /// T136: Check if minimum dataset size is reached for a product and trigger model retraining.
     /// </summary>
+    /// <param name="productId">The product identifier to check.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     private async Task CheckAndTriggerRetrainingAsync(string productId, CancellationToken cancellationToken)
     {
-        // TODO: Implement actual dataset size check
-        // For now, this is a placeholder for the retraining trigger logic
-
-        // Check current dataset size for this product
         var datasetSize = await GetDatasetSizeAsync(productId, cancellationToken);
 
         if (datasetSize >= MinimumDatasetSizeForRetraining)
@@ -200,8 +199,11 @@ public class OrderCreatedConsumer : IConsumer<OrderCreated>
     }
 
     /// <summary>
-    /// Get current dataset size for a product.
+    /// Get the current training dataset record count for a given product.
     /// </summary>
+    /// <param name="productId">The product identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Current record count.</returns>
     private async Task<int> GetDatasetSizeAsync(string productId, CancellationToken cancellationToken)
     {
         // TODO: Implement actual dataset size query
@@ -212,17 +214,21 @@ public class OrderCreatedConsumer : IConsumer<OrderCreated>
     }
 
     /// <summary>
-    /// Simple holiday detection (US holidays).
+    /// Simple check for common Thai public holidays.
     /// </summary>
-    private bool IsHoliday(DateTime date)
+    /// <param name="date">The date to check.</param>
+    /// <returns>True if the date is a recognised holiday.</returns>
+    private static bool IsHoliday(DateTime date)
     {
-        // Simplified - check common US holidays
         var holidays = new[]
         {
             new DateTime(date.Year, 1, 1),   // New Year's Day
-            new DateTime(date.Year, 7, 4),   // Independence Day
-            new DateTime(date.Year, 12, 25), // Christmas
-            // Add more holidays as needed
+            new DateTime(date.Year, 4, 6),   // Chakri Day
+            new DateTime(date.Year, 4, 13),  // Songkran
+            new DateTime(date.Year, 5, 1),   // Labour Day
+            new DateTime(date.Year, 12, 5),  // King's Birthday
+            new DateTime(date.Year, 12, 10), // Constitution Day
+            new DateTime(date.Year, 12, 31), // New Year's Eve
         };
 
         return holidays.Any(h => h.Date == date.Date);
