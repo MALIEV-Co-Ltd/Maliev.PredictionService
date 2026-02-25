@@ -1,3 +1,4 @@
+using Maliev.PredictionService.Infrastructure.BackgroundServices;
 using Maliev.PredictionService.Infrastructure.Persistence.Repositories;
 using Maliev.MessagingContracts.Contracts.Orders;
 using Maliev.PredictionService.Domain.Entities;
@@ -25,13 +26,13 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
     /// </summary>
     /// <param name="logger">Logger instance.</param>
     /// <param name="modelRepository">Repository for ML model access.</param>
-    private readonly Maliev.PredictionService.Infrastructure.BackgroundServices.ModelRetrainingBackgroundService _retrainingService;
+    private readonly IModelRetrainingService _retrainingService;
     private readonly TrainingDatasetRepository _datasetRepository;
 
     public OrderCreatedConsumer(
         ILogger<OrderCreatedConsumer> logger,
         IModelRepository modelRepository,
-        Maliev.PredictionService.Infrastructure.BackgroundServices.ModelRetrainingBackgroundService retrainingService,
+        IModelRetrainingService retrainingService,
         TrainingDatasetRepository datasetRepository)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

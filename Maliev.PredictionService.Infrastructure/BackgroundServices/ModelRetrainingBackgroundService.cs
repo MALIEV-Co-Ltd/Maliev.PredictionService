@@ -11,7 +11,7 @@ namespace Maliev.PredictionService.Infrastructure.BackgroundServices;
 /// Background service for scheduled model retraining.
 /// Uses System.Threading.Channels for job queue management.
 /// </summary>
-public class ModelRetrainingBackgroundService : BackgroundService
+public class ModelRetrainingBackgroundService : BackgroundService, IModelRetrainingService
 {
     private readonly ILogger<ModelRetrainingBackgroundService> _logger;
     private readonly IServiceProvider _serviceProvider;

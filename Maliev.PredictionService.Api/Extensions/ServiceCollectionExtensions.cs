@@ -139,7 +139,15 @@ public static class ServiceCollectionExtensions
         var disableBackgroundServices = configuration.GetValue<bool>("BackgroundServices:Disabled", false);
         if (!disableBackgroundServices)
         {
-            services.AddHostedService<ModelRetrainingBackgroundService>();
+            // Register as singleton so it can be injected via IModelRetrainingService,
+            // then forward to AddHostedService so the runtime still manages its lifecycle.
+            services.AddSingleton<ModelRetrainingBackgroundService>();
+            services.AddHostedService(sp => sp.GetRequiredService<ModelRetrainingBackgroundService>());
+            services.AddSingleton<IModelRetrainingService>(sp => sp.GetRequiredService<ModelRetrainingBackgroundService>());
+        }
+        else
+        {
+            services.AddSingleton<IModelRetrainingService, NoOpModelRetrainingService>();
         }
 
         return services;

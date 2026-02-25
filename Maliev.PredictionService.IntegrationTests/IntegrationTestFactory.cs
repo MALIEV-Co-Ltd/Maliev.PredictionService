@@ -13,6 +13,8 @@ using Microsoft.ML;
 
 using Testcontainers.PostgreSql;
 
+using Testcontainers.RabbitMq;
+
 using Testcontainers.Redis;
 
 
@@ -35,15 +37,21 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
 
         .Build();
 
+    private readonly RabbitMqContainer _rabbitmqContainer = new RabbitMqBuilder("rabbitmq:4.2-alpine")
+
+        .Build();
+
 
 
     public async Task InitializeAsync()
 
     {
 
-        await _postgresContainer.StartAsync();
-
-        await _redisContainer.StartAsync();
+        await Task.WhenAll(
+            _postgresContainer.StartAsync(),
+            _redisContainer.StartAsync(),
+            _rabbitmqContainer.StartAsync()
+        );
 
 
 
@@ -163,6 +171,8 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
 
         await _redisContainer.DisposeAsync();
 
+        await _rabbitmqContainer.DisposeAsync();
+
     }
 
 
@@ -184,6 +194,8 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
         builder.UseSetting("ConnectionStrings:PredictionDbContext", _postgresContainer.GetConnectionString());
 
         builder.UseSetting("ConnectionStrings:redis", _redisContainer.GetConnectionString());
+
+        builder.UseSetting("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
 
         builder.UseSetting("BackgroundServices:Disabled", "true"); // Disable background services during tests
 
