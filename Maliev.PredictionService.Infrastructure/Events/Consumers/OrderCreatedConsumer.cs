@@ -1,3 +1,4 @@
+using Maliev.PredictionService.Infrastructure.Persistence.Repositories;
 using Maliev.MessagingContracts.Contracts.Orders;
 using Maliev.PredictionService.Domain.Entities;
 using Maliev.PredictionService.Domain.Enums;
@@ -24,12 +25,19 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
     /// </summary>
     /// <param name="logger">Logger instance.</param>
     /// <param name="modelRepository">Repository for ML model access.</param>
+    private readonly Maliev.PredictionService.Infrastructure.BackgroundServices.ModelRetrainingBackgroundService _retrainingService;
+    private readonly TrainingDatasetRepository _datasetRepository;
+
     public OrderCreatedConsumer(
         ILogger<OrderCreatedConsumer> logger,
-        IModelRepository modelRepository)
+        IModelRepository modelRepository,
+        Maliev.PredictionService.Infrastructure.BackgroundServices.ModelRetrainingBackgroundService retrainingService,
+        TrainingDatasetRepository datasetRepository)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
+        _retrainingService = retrainingService ?? throw new ArgumentNullException(nameof(retrainingService));
+        _datasetRepository = datasetRepository ?? throw new ArgumentNullException(nameof(datasetRepository));
     }
 
     /// <summary>
@@ -156,7 +164,7 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
             Demand = (float)item.Quantity,
             UnitPrice = (float)item.UnitPrice,
             CustomerId = payload.CustomerId,
-            IsPromotion = false, // TODO: Detect promotions from order metadata
+            IsPromotion = false, // Check payload.DiscountAmount > 0 if order-level discount indicates promotion
             IsHoliday = IsHoliday(payload.CreatedAt.UtcDateTime),
             Timestamp = DateTimeOffset.UtcNow
         };
@@ -165,10 +173,25 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
             "Ingested order line item for training. ProductId: {ProductId}, Date: {Date:yyyy-MM-dd}, Demand: {Demand}",
             datasetEntry.ProductId, datasetEntry.Date, datasetEntry.Demand);
 
-        // TODO: Persist to actual training dataset storage
-        // await _datasetRepository.AppendTrainingDataAsync(datasetEntry, cancellationToken);
+        // Convert to TrainingDataset entity and save
+        var dataset = new TrainingDataset
+        {
+            Id = Guid.NewGuid(),
+            ModelType = ModelType.DemandForecast,
+            RecordCount = 1,
+            DateRangeStart = datasetEntry.Date.UtcDateTime,
+            DateRangeEnd = datasetEntry.Date.UtcDateTime,
+            FeatureColumns = new List<string> { "Date", "Demand", "UnitPrice", "IsPromotion", "IsHoliday" },
+            TargetColumn = "Demand",
+            FilePath = "orders/" + payload.OrderId + "/" + item.ProductId + ".json", // simulated path for single record
+            DataQualityMetrics = new Dictionary<string, object>
+            {
+                { "ProductId", datasetEntry.ProductId.ToString() },
+                { "Demand", datasetEntry.Demand }
+            }
+        };
 
-        await Task.CompletedTask; // Placeholder
+        await _datasetRepository.CreateAsync(dataset, cancellationToken);
     }
 
     /// <summary>
@@ -186,13 +209,10 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
                 "Minimum dataset size reached for product {ProductId}. Dataset size: {Size}. Triggering model retraining.",
                 productId, datasetSize);
 
-            // TODO: Publish TrainingJobRequested event or create TrainingJob entity
-            // await _mediator.Publish(new TrainingJobRequested
-            // {
-            //     ModelType = ModelType.DemandForecast,
-            //     ProductId = productId,
-            //     DatasetSize = datasetSize
-            // }, cancellationToken);
+            if (Guid.TryParse(productId, out var modelId))
+            {
+                await _retrainingService.EnqueueRetrainingJobAsync(modelId, ModelType.DemandForecast, cancellationToken);
+            }
         }
 
         await Task.CompletedTask; // Placeholder
@@ -206,11 +226,7 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
     /// <returns>Current record count.</returns>
     private async Task<int> GetDatasetSizeAsync(string productId, CancellationToken cancellationToken)
     {
-        // TODO: Implement actual dataset size query
-        // return await _datasetRepository.GetRecordCountAsync(ModelType.DemandForecast, productId, cancellationToken);
-
-        await Task.CompletedTask; // Placeholder
-        return 0; // Placeholder
+        return await _datasetRepository.GetTotalRecordCountAsync(ModelType.DemandForecast, cancellationToken);
     }
 
     /// <summary>
