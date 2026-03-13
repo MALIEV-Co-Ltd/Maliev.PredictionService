@@ -37,7 +37,9 @@ public class PredictionsEndToEndTests : IAsyncLifetime
     public PredictionsEndToEndTests()
     {
         // Initialize PostgreSQL container (Testcontainers v4.x)
-        _postgresContainer = new PostgreSqlBuilder("postgres:18-alpine")
+        _postgresContainer =
+#pragma warning disable CS0618
+        new PostgreSqlBuilder().WithImage("postgres:18-alpine")
             .WithDatabase("prediction_service_test")
             .WithUsername("test_user")
             .WithPassword("test_password")
@@ -46,6 +48,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         // Initialize Redis container (Testcontainers v4.x)
         _redisContainer = new RedisBuilder("redis:7-alpine")
             .Build();
+#pragma warning restore CS0618
     }
 
     public async Task InitializeAsync()

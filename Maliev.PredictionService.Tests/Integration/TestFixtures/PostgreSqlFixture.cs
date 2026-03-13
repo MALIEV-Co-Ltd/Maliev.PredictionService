@@ -13,12 +13,15 @@ public class PostgreSqlFixture : IAsyncLifetime
 
     public PostgreSqlFixture()
     {
-        _container = new PostgreSqlBuilder("postgres:18-alpine")
+        _container =
+#pragma warning disable CS0618
+        new PostgreSqlBuilder().WithImage("postgres:18-alpine")
             .WithDatabase("prediction_service_test")
             .WithUsername("postgres")
             .WithPassword("postgres")
             .WithCleanUp(true)
             .Build();
+#pragma warning restore CS0618
     }
 
     public async Task InitializeAsync()

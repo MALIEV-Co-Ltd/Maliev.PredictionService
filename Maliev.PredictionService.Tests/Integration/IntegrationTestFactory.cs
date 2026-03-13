@@ -29,7 +29,9 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
 
     private readonly RSA _testRsa = RSA.Create(2048);
 
-    private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder("postgres:18-alpine")
+    private readonly PostgreSqlContainer _postgresContainer =
+#pragma warning disable CS0618
+        new PostgreSqlBuilder().WithImage("postgres:18-alpine")
 
         .Build();
 
@@ -40,6 +42,7 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
     private readonly RabbitMqContainer _rabbitmqContainer = new RabbitMqBuilder("rabbitmq:4.2-alpine")
 
         .Build();
+#pragma warning restore CS0618
 
 
 
