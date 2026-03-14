@@ -7,7 +7,6 @@ using Maliev.PredictionService.Application.Commands.Predictions;
 using Maliev.PredictionService.Application.DTOs.Requests;
 using Maliev.PredictionService.Application.DTOs.Responses;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.ComponentModel.DataAnnotations;
@@ -20,8 +19,7 @@ namespace Maliev.PredictionService.Api.Controllers;
 /// </summary>
 [ApiController]
 [ApiVersion("1.0")]
-[Route("predictionservice/v{version:apiVersion}/predictions")]
-[Authorize]
+[Route("prediction/v{version:apiVersion}/predictions")]
 public class PredictionsController : ControllerBase
 {
     private readonly IMediator _mediator;
