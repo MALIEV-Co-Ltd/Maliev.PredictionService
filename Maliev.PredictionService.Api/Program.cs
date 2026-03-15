@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.PredictionService.Api.Extensions;
+using Maliev.PredictionService.Infrastructure.Persistence;
 using Maliev.PredictionService.Infrastructure.Storage;
 using MassTransit;
 
@@ -87,6 +88,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// --- Database Migration ---
+await app.MigrateDatabaseAsync<PredictionDbContext>();
 
 // --- Middleware Pipeline ---
 
