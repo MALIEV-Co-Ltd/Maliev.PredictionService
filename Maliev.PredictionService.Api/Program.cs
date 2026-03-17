@@ -99,6 +99,7 @@ app.MapDefaultEndpoints("predictionservice");
 
 if (app.Environment.IsDevelopment())
 {
+    app.MapApiDocumentation(servicePrefix: "prediction");
     app.MapOpenApi();
 }
 
@@ -121,5 +122,7 @@ app.MapControllers();
 
 app.Run();
 
-// Make Program accessible to integration tests
+/// <summary>
+/// Entry point for the Prediction Service API.
+/// </summary>
 public partial class Program { }
