@@ -50,7 +50,7 @@ public class PredictionsControllerTests : IClassFixture<IntegrationTestFactory>,
         content.Add(new StringContent("20.0"), "infillPercentage");
 
         // Act
-        var response = await _client.PostAsync("/predictionservice/v1/predictions/print-time", content);
+        var response = await _client.PostAsync("/prediction/v1/predictions/print-time", content);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode); // Valid STL with all parameters should succeed
@@ -89,7 +89,7 @@ public class PredictionsControllerTests : IClassFixture<IntegrationTestFactory>,
         content.Add(new StringContent("20.0"), "infillPercentage");
 
         // Act
-        var response = await _client.PostAsync("/predictionservice/v1/predictions/print-time", content);
+        var response = await _client.PostAsync("/prediction/v1/predictions/print-time", content);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode); // Missing required geometryFile should fail validation
@@ -115,7 +115,7 @@ public class PredictionsControllerTests : IClassFixture<IntegrationTestFactory>,
         content.Add(new StringContent("20.0"), "infillPercentage");
 
         // Act
-        var response = await _client.PostAsync("/predictionservice/v1/predictions/print-time", content);
+        var response = await _client.PostAsync("/prediction/v1/predictions/print-time", content);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode); // Negative print speed should fail validation
@@ -143,7 +143,7 @@ public class PredictionsControllerTests : IClassFixture<IntegrationTestFactory>,
         content.Add(new StringContent("20.0"), "infillPercentage");
 
         // Act
-        var response = await unauthorizedClient.PostAsync("/predictionservice/v1/predictions/print-time", content);
+        var response = await unauthorizedClient.PostAsync("/prediction/v1/predictions/print-time", content);
 
         // Assert
         // Note: This test will fail until authentication middleware is properly configured
@@ -174,7 +174,7 @@ public class PredictionsControllerTests : IClassFixture<IntegrationTestFactory>,
         content.Add(new StringContent("20.0"), "infillPercentage");
 
         // Act
-        var response = await _client.PostAsync("/predictionservice/v1/predictions/print-time", content);
+        var response = await _client.PostAsync("/prediction/v1/predictions/print-time", content);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode); // Files larger than 50MB should be rejected
@@ -215,8 +215,8 @@ public class PredictionsControllerTests : IClassFixture<IntegrationTestFactory>,
         absContent.Add(new StringContent("20.0"), "infillPercentage");
 
         // Act
-        var plaResponse = await _client.PostAsync("/predictionservice/v1/predictions/print-time", plaContent);
-        var absResponse = await _client.PostAsync("/predictionservice/v1/predictions/print-time", absContent);
+        var plaResponse = await _client.PostAsync("/prediction/v1/predictions/print-time", plaContent);
+        var absResponse = await _client.PostAsync("/prediction/v1/predictions/print-time", absContent);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, plaResponse.StatusCode);

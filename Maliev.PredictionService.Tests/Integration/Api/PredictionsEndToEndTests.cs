@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Testcontainers.PostgreSql;
+using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
 using Xunit;
 
@@ -30,6 +31,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgresContainer;
     private readonly RedisContainer _redisContainer;
+    private readonly RabbitMqContainer _rabbitMqContainer;
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
     private readonly System.Security.Cryptography.RSA _testRsa = System.Security.Cryptography.RSA.Create(2048);
@@ -48,14 +50,21 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         // Initialize Redis container (Testcontainers v4.x)
         _redisContainer = new RedisBuilder("redis:7-alpine")
             .Build();
+
+        // Initialize RabbitMQ container (Testcontainers v4.x)
+        _rabbitMqContainer = new RabbitMqBuilder("rabbitmq:4.2-alpine")
+            .Build();
 #pragma warning restore CS0618
     }
 
     public async Task InitializeAsync()
     {
         // Start containers
-        await _postgresContainer.StartAsync();
-        await _redisContainer.StartAsync();
+        await Task.WhenAll(
+            _postgresContainer.StartAsync(),
+            _redisContainer.StartAsync(),
+            _rabbitMqContainer.StartAsync()
+        );
 
         // Create WebApplicationFactory with Testcontainers
         _factory = new WebApplicationFactory<Program>()
@@ -102,8 +111,9 @@ public class PredictionsEndToEndTests : IAsyncLifetime
                 });
 
                 builder.UseEnvironment("Test");
+                builder.UseSetting("ConnectionStrings:PredictionDatabase", _postgresContainer.GetConnectionString());
                 builder.UseSetting("ConnectionStrings:redis", _redisContainer.GetConnectionString());
-                builder.UseSetting("ConnectionStrings:rabbitmq", "localhost"); // Placeholder or actual if needed
+                builder.UseSetting("ConnectionStrings:rabbitmq", _rabbitMqContainer.GetConnectionString());
                 builder.UseSetting("BackgroundServices:Disabled", "true"); // Disable background services during tests
             });
 
@@ -121,7 +131,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         {
             new System.Security.Claims.Claim("sub", "test-user"),
             new System.Security.Claims.Claim("role", "admin"),
-            new System.Security.Claims.Claim("permission", "predictionservice.predictions.create")
+            new System.Security.Claims.Claim("permission", "prediction.predictions.create")
         };
         var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken("test", "test", claims, expires: DateTime.UtcNow.AddHours(1));
         return handler.WriteToken(token);
@@ -133,6 +143,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         _factory?.Dispose();
         await _postgresContainer.DisposeAsync();
         await _redisContainer.DisposeAsync();
+        await _rabbitMqContainer.DisposeAsync();
         _testRsa.Dispose();
     }
 
@@ -157,7 +168,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         content.Add(new StringContent("20.0"), "infillPercentage");
 
         // Act
-        var response = await _client!.PostAsync("/predictionservice/v1/predictions/print-time", content);
+        var response = await _client!.PostAsync("/prediction/v1/predictions/print-time", content);
 
         // Assert - Response
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -208,11 +219,11 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         };
 
         // Act - First request (cache miss)
-        var firstResponse = await _client!.PostAsync("/predictionservice/v1/predictions/print-time", createRequest());
+        var firstResponse = await _client!.PostAsync("/prediction/v1/predictions/print-time", createRequest());
         var firstPrediction = await firstResponse.Content.ReadFromJsonAsync<PredictionResponse>();
 
         // Act - Second identical request (cache hit)
-        var secondResponse = await _client.PostAsync("/predictionservice/v1/predictions/print-time", createRequest());
+        var secondResponse = await _client.PostAsync("/prediction/v1/predictions/print-time", createRequest());
         var secondPrediction = await secondResponse.Content.ReadFromJsonAsync<PredictionResponse>();
 
         // Assert - Both requests succeeded
@@ -260,7 +271,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         };
 
         // Act - First request (cache miss, using model v1.0.0)
-        var firstResponse = await _client!.PostAsync("/predictionservice/v1/predictions/print-time", createRequest());
+        var firstResponse = await _client!.PostAsync("/prediction/v1/predictions/print-time", createRequest());
         var firstPrediction = await firstResponse.Content.ReadFromJsonAsync<PredictionResponse>();
 
         Assert.NotNull(firstPrediction);
@@ -324,7 +335,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         }
 
         // Act - Third request with same parameters (should be cache miss due to model version change)
-        var thirdResponse = await _client.PostAsync("/predictionservice/v1/predictions/print-time", createRequest());
+        var thirdResponse = await _client.PostAsync("/prediction/v1/predictions/print-time", createRequest());
         var thirdPrediction = await thirdResponse.Content.ReadFromJsonAsync<PredictionResponse>();
 
         // Assert - Cache was invalidated
@@ -368,13 +379,13 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         };
 
         // Act - Predict for all 3 geometries
-        var response1 = await _client!.PostAsync("/predictionservice/v1/predictions/print-time", createRequest(cube10mm));
+        var response1 = await _client!.PostAsync("/prediction/v1/predictions/print-time", createRequest(cube10mm));
         var prediction1 = await response1.Content.ReadFromJsonAsync<PredictionResponse>();
 
-        var response2 = await _client.PostAsync("/predictionservice/v1/predictions/print-time", createRequest(cube20mm));
+        var response2 = await _client.PostAsync("/prediction/v1/predictions/print-time", createRequest(cube20mm));
         var prediction2 = await response2.Content.ReadFromJsonAsync<PredictionResponse>();
 
-        var response3 = await _client.PostAsync("/predictionservice/v1/predictions/print-time", createRequest(cube30mm));
+        var response3 = await _client.PostAsync("/prediction/v1/predictions/print-time", createRequest(cube30mm));
         var prediction3 = await response3.Content.ReadFromJsonAsync<PredictionResponse>();
 
         // Assert - All are cache misses (different geometries)
@@ -408,7 +419,7 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         };
 
         // Act - POST demand forecast request
-        var response = await _client!.PostAsJsonAsync("/predictionservice/v1/predictions/demand-forecast", request);
+        var response = await _client!.PostAsJsonAsync("/prediction/v1/predictions/demand-forecast", request);
 
         // Assert - Response
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -461,11 +472,11 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         };
 
         // Act - First request (cache miss)
-        var firstResponse = await _client!.PostAsJsonAsync("/predictionservice/v1/predictions/demand-forecast", request);
+        var firstResponse = await _client!.PostAsJsonAsync("/prediction/v1/predictions/demand-forecast", request);
         var firstPrediction = await firstResponse.Content.ReadFromJsonAsync<PredictionResponse>();
 
         // Act - Second identical request (cache hit)
-        var secondResponse = await _client!.PostAsJsonAsync("/predictionservice/v1/predictions/demand-forecast", request);
+        var secondResponse = await _client!.PostAsJsonAsync("/prediction/v1/predictions/demand-forecast", request);
         var secondPrediction = await secondResponse.Content.ReadFromJsonAsync<PredictionResponse>();
 
         // Assert - Both requests succeeded
@@ -508,10 +519,10 @@ public class PredictionsEndToEndTests : IAsyncLifetime
         };
 
         // Act
-        var response7 = await _client!.PostAsJsonAsync("/predictionservice/v1/predictions/demand-forecast", request7Day);
+        var response7 = await _client!.PostAsJsonAsync("/prediction/v1/predictions/demand-forecast", request7Day);
         var forecast7 = await response7.Content.ReadFromJsonAsync<PredictionResponse>();
 
-        var response30 = await _client!.PostAsJsonAsync("/predictionservice/v1/predictions/demand-forecast", request30Day);
+        var response30 = await _client!.PostAsJsonAsync("/prediction/v1/predictions/demand-forecast", request30Day);
         var forecast30 = await response30.Content.ReadFromJsonAsync<PredictionResponse>();
 
         // Assert

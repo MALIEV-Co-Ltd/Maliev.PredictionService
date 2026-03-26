@@ -194,7 +194,7 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
 
         builder.UseSetting("CORS:AllowedOrigins:0", "http://localhost:3000");
 
-        builder.UseSetting("ConnectionStrings:PredictionDbContext", _postgresContainer.GetConnectionString());
+        builder.UseSetting("ConnectionStrings:PredictionDatabase", _postgresContainer.GetConnectionString());
 
         builder.UseSetting("ConnectionStrings:redis", _redisContainer.GetConnectionString());
 

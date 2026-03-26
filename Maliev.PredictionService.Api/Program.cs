@@ -1,8 +1,10 @@
 using System.Threading.RateLimiting;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.PredictionService.Api.Extensions;
+using Maliev.PredictionService.Application.Services;
 using Maliev.PredictionService.Infrastructure.Persistence;
 using Maliev.PredictionService.Infrastructure.Storage;
+using Maliev.Aspire.ServiceDefaults.IAM;
 using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +17,9 @@ builder.AddMassTransitWithRabbitMq(x =>
 {
     x.AddConsumers(typeof(Maliev.PredictionService.Infrastructure.AssemblyReference).Assembly);
 });
+
+// --- IAM Registration ---
+builder.Services.AddIAMRegistration<PredictionIAMRegistrationService>("prediction");
 
 // --- Model Storage (must be before AddPredictionService) ---
 builder.AddModelStorage(); // Automatic JWT auth via ServiceAccountAuthenticationHandler
