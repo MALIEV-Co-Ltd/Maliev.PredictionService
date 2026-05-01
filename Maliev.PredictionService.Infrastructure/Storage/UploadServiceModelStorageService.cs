@@ -51,23 +51,39 @@ public class UploadServiceModelStorageService : IModelStorageService
         try
         {
             using var fileStream = File.OpenRead(modelPath);
-            using var content = new MultipartFormDataContent();
+            var initiateRequest = new InitiateResumableUploadRequest(
+                Path: storagePath,
+                FileName: fileName,
+                ServiceName: "PredictionService",
+                ContentType: "application/zip",
+                TotalSize: fileStream.Length,
+                Overwrite: true);
 
-            // Add file content
-            var fileContent = new StreamContent(fileStream);
+            var initiateResponse = await _httpClient.PostAsJsonAsync(
+                "/upload/v1/uploads/resumable",
+                initiateRequest,
+                cancellationToken);
+            initiateResponse.EnsureSuccessStatusCode();
+
+            var session = await initiateResponse.Content.ReadFromJsonAsync<InitiateResumableUploadResponse>(cancellationToken: cancellationToken)
+                ?? throw new InvalidOperationException("Upload service returned an empty resumable upload session.");
+
+            using var gcsClient = new HttpClient();
+            using var fileContent = new StreamContent(fileStream);
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
-            content.Add(fileContent, "File", fileName);
+            fileContent.Headers.ContentLength = fileStream.Length;
+            fileContent.Headers.ContentRange = new ContentRangeHeaderValue(0, fileStream.Length - 1, fileStream.Length);
 
-            // Add form fields (matches UploadFileRequest)
-            content.Add(new StringContent(storagePath), "Path");
-            content.Add(new StringContent("PredictionService"), "ServiceName");
-            content.Add(new StringContent("true"), "Overwrite"); // Allow overwriting for model updates
+            var gcsResponse = await gcsClient.PutAsync(session.SessionUri, fileContent, cancellationToken);
+            gcsResponse.EnsureSuccessStatusCode();
 
-            // POST /upload/v1/uploads
-            var response = await _httpClient.PostAsync("/upload/v1/uploads", content, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            var completeResponse = await _httpClient.PostAsJsonAsync(
+                $"/upload/v1/uploads/resumable/{session.UploadId}/complete",
+                new { },
+                cancellationToken);
+            completeResponse.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<UploadResponse>(cancellationToken: cancellationToken);
+            var result = await completeResponse.Content.ReadFromJsonAsync<UploadResponse>(cancellationToken: cancellationToken);
 
             if (result == null || string.IsNullOrEmpty(result.UploadId))
             {
@@ -347,7 +363,7 @@ public class UploadServiceOptions
 }
 
 /// <summary>
-/// Response model from POST /upload/v1/uploads
+/// Response model from POST /upload/v1/uploads/resumable/{uploadId}/complete
 /// </summary>
 internal class UploadResponse
 {
@@ -366,6 +382,26 @@ internal class UploadResponse
     [JsonPropertyName("uploadedAt")]
     public DateTime UploadedAt { get; set; }
 }
+
+/// <summary>
+/// Request model for POST /upload/v1/uploads/resumable.
+/// </summary>
+internal sealed record InitiateResumableUploadRequest(
+    string Path,
+    string FileName,
+    string ServiceName,
+    string ContentType,
+    long TotalSize,
+    bool Overwrite);
+
+/// <summary>
+/// Response model from POST /upload/v1/uploads/resumable.
+/// </summary>
+internal sealed record InitiateResumableUploadResponse(
+    string UploadId,
+    string SessionUri,
+    DateTime ExpiresAt,
+    long TotalSize);
 
 /// <summary>
 /// Response model from GET /upload/v1/files (query)
