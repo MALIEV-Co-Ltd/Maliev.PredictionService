@@ -22,10 +22,10 @@ jobs:
         run: |
           # Replace ProjectReference with PackageReference in all service csproj files
           find . -name "*.csproj" -type f -exec sed -i \
-            's|<ProjectReference Include=".*Maliev.Aspire.ServiceDefaults.*.csproj" />|<PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="1.0.*-*" />|g' \
+            's|<ProjectReference Include=".*Maliev.Aspire.ServiceDefaults.*.csproj" />|<PackageReference Include="Maliev.Aspire.ServiceDefaults" Version="1.0.*-alpha*" />|g' \
             {} \;
           find . -name "*.csproj" -type f -exec sed -i \
-            's|<ProjectReference Include=".*Maliev.MessagingContracts.*.csproj" />|<PackageReference Include="Maliev.MessagingContracts" Version="1.0.*-*" />|g' \
+            's|<ProjectReference Include=".*Maliev.MessagingContracts.*.csproj" />|<PackageReference Include="Maliev.MessagingContracts" Version="1.0.*-alpha*" />|g' \
             {} \;
           echo "Switched to PackageReference for ServiceDefaults and MessagingContracts"
 
