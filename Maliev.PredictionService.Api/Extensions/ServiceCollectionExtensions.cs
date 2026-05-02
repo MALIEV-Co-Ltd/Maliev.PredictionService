@@ -61,11 +61,6 @@ public static class ServiceCollectionExtensions
             // Performance optimizations
             options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking); // Disable tracking by default for read queries
 
-            // Enable sensitive data logging in development
-            if (configuration.GetValue<bool>("Logging:EnableSensitiveDataLogging"))
-            {
-                options.EnableSensitiveDataLogging();
-            }
         });
 
         // In-Memory Cache for ML models
