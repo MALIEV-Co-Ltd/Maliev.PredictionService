@@ -94,7 +94,6 @@ public static class ServiceCollectionExtensions
 
             // Performance optimizations
             configurationOptions.DefaultDatabase = 0;
-            configurationOptions.Ssl = false; // Enable if using SSL/TLS
 
             return ConnectionMultiplexer.Connect(configurationOptions);
         });
