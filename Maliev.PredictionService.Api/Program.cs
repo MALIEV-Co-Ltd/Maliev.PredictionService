@@ -11,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- Infrastructure & Observability ---
 builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+builder.AddDefaultApiVersioning(); // API versioning with URL segment reader (FR-051)
+builder.AddStandardCors(); // Fail-fast, configured CORS policy
 
 // --- MassTransit with RabbitMQ ---
 builder.AddMassTransitWithRabbitMq(x =>
@@ -76,20 +78,6 @@ builder.Services.AddRateLimiter(options =>
     });
 
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-});
-
-// --- API Configuration ---
-builder.AddDefaultApiVersioning(); // API versioning with URL segment reader (FR-051)
-
-// CORS (if needed)
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
 });
 
 var app = builder.Build();
