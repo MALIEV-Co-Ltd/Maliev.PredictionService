@@ -23,6 +23,12 @@ public class ValidFileAttribute : ValidationAttribute
     /// </summary>
     public string[]? AllowedContentTypes { get; set; }
 
+    /// <summary>
+    /// Validates the file input.
+    /// </summary>
+    /// <param name="value">The value to validate.</param>
+    /// <param name="validationContext">The validation context.</param>
+    /// <returns>A validation result.</returns>
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
         if (value is not IFormFile file)

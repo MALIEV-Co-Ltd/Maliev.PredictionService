@@ -1,12 +1,27 @@
 using System.Threading.RateLimiting;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.PredictionService.Api.Extensions;
+using Maliev.PredictionService.Application.Services;
+using Maliev.PredictionService.Infrastructure.Persistence;
 using Maliev.PredictionService.Infrastructure.Storage;
+using Maliev.Aspire.ServiceDefaults.IAM;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Infrastructure & Observability ---
 builder.AddServiceDefaults(); // OpenTelemetry, health checks, resilience
+builder.AddDefaultApiVersioning(); // API versioning with URL segment reader (FR-051)
+builder.AddStandardCors(); // Fail-fast, configured CORS policy
+
+// --- MassTransit with RabbitMQ ---
+builder.AddMassTransitWithRabbitMq(x =>
+{
+    x.AddConsumers(typeof(Maliev.PredictionService.Infrastructure.AssemblyReference).Assembly);
+});
+
+// --- IAM Registration ---
+builder.Services.AddIAMRegistration<PredictionIAMRegistrationService>("prediction");
 
 // --- Model Storage (must be before AddPredictionService) ---
 builder.AddModelStorage(); // Automatic JWT auth via ServiceAccountAuthenticationHandler
@@ -65,21 +80,10 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
-// --- API Configuration ---
-builder.AddDefaultApiVersioning(); // API versioning with URL segment reader (FR-051)
-
-// CORS (if needed)
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
-
 var app = builder.Build();
+
+// --- Database Migration ---
+await app.MigrateDatabaseAsync<PredictionDbContext>();
 
 // --- Middleware Pipeline ---
 
@@ -88,6 +92,7 @@ app.MapDefaultEndpoints("predictionservice");
 
 if (app.Environment.IsDevelopment())
 {
+    app.MapApiDocumentation(servicePrefix: "prediction");
     app.MapOpenApi();
 }
 
@@ -110,5 +115,7 @@ app.MapControllers();
 
 app.Run();
 
-// Make Program accessible to integration tests
+/// <summary>
+/// Entry point for the Prediction Service API.
+/// </summary>
 public partial class Program { }

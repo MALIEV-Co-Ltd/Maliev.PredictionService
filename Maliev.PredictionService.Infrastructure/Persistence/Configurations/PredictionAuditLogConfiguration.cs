@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Maliev.PredictionService.Domain.Entities;
 using System.Text.Json;
@@ -35,7 +36,11 @@ public class PredictionAuditLogConfiguration : IEntityTypeConfiguration<Predicti
             .HasColumnType("jsonb")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null)!);
+                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null)!,
+                new ValueComparer<Dictionary<string, object>>(
+                    (l, r) => JsonSerializer.Serialize(l, (JsonSerializerOptions?)null) == JsonSerializer.Serialize(r, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null).GetHashCode(),
+                    v => JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(v, (JsonSerializerOptions?)null), (JsonSerializerOptions?)null)!));
 
         // OutputPrediction as JSONB
         builder.Property(p => p.OutputPrediction)
@@ -43,7 +48,11 @@ public class PredictionAuditLogConfiguration : IEntityTypeConfiguration<Predicti
             .HasColumnType("jsonb")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null)!);
+                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null)!,
+                new ValueComparer<Dictionary<string, object>>(
+                    (l, r) => JsonSerializer.Serialize(l, (JsonSerializerOptions?)null) == JsonSerializer.Serialize(r, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null).GetHashCode(),
+                    v => JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(v, (JsonSerializerOptions?)null), (JsonSerializerOptions?)null)!));
 
         builder.Property(p => p.CacheStatus)
             .IsRequired()
@@ -65,8 +74,12 @@ public class PredictionAuditLogConfiguration : IEntityTypeConfiguration<Predicti
         builder.Property(p => p.ActualOutcome)
             .HasColumnType("jsonb")
             .HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null));
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrEmpty(v) ? null : JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null),
+                new ValueComparer<Dictionary<string, object>?>(
+                    (l, r) => JsonSerializer.Serialize(l, (JsonSerializerOptions?)null) == JsonSerializer.Serialize(r, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null).GetHashCode(),
+                    v => JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(v, (JsonSerializerOptions?)null), (JsonSerializerOptions?)null)));
 
         builder.Property(p => p.ErrorMessage)
             .HasMaxLength(1000);

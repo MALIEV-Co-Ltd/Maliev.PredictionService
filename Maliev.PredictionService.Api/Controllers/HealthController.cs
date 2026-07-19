@@ -15,6 +15,12 @@ public class HealthController : ControllerBase
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<HealthController> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HealthController"/> class.
+    /// </summary>
+    /// <param name="dbContext">The database context.</param>
+    /// <param name="redis">The Redis connection.</param>
+    /// <param name="logger">The logger instance.</param>
     public HealthController(
         PredictionDbContext dbContext,
         IConnectionMultiplexer redis,
