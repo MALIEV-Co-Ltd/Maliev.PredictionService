@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
-    <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.*-alpha*</SharedLibraryVersion>
+    <SharedLibraryVersion Condition="'$(SharedLibraryVersion)' == ''">1.0.96-alpha</SharedLibraryVersion>
+    <ServiceDefaultsVersion Condition="'$(ServiceDefaultsVersion)' == ''">1.0.89-alpha</ServiceDefaultsVersion>
   </PropertyGroup>
 </Project>
