@@ -10,12 +10,22 @@ public class RequestLoggingMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestLoggingMiddleware> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RequestLoggingMiddleware"/> class.
+    /// </summary>
+    /// <param name="next">The next middleware in the pipeline.</param>
+    /// <param name="logger">The logger instance.</param>
     public RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggingMiddleware> logger)
     {
         _next = next;
         _logger = logger;
     }
 
+    /// <summary>
+    /// Invokes the middleware to process the request.
+    /// </summary>
+    /// <param name="context">The HTTP context.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InvokeAsync(HttpContext context)
     {
         // Generate or retrieve correlation ID
@@ -57,6 +67,11 @@ public class RequestLoggingMiddleware
 /// </summary>
 public static class RequestLoggingMiddlewareExtensions
 {
+    /// <summary>
+    /// Adds the request logging middleware to the application pipeline.
+    /// </summary>
+    /// <param name="builder">The application builder.</param>
+    /// <returns>The application builder.</returns>
     public static IApplicationBuilder UseRequestLogging(this IApplicationBuilder builder)
     {
         return builder.UseMiddleware<RequestLoggingMiddleware>();

@@ -7,7 +7,6 @@ using Maliev.PredictionService.Application.Commands.Predictions;
 using Maliev.PredictionService.Application.DTOs.Requests;
 using Maliev.PredictionService.Application.DTOs.Responses;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.ComponentModel.DataAnnotations;
@@ -19,14 +18,18 @@ namespace Maliev.PredictionService.Api.Controllers;
 /// Controller for ML prediction operations (print time, demand forecast, price optimization).
 /// </summary>
 [ApiController]
-[ApiVersion("1.0")]
-[Route("predictionservice/v{version:apiVersion}/predictions")]
-[Authorize]
+[ApiVersion("1")]
+[Route("prediction/v{version:apiVersion}/predictions")]
 public class PredictionsController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly ILogger<PredictionsController> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PredictionsController"/> class.
+    /// </summary>
+    /// <param name="mediator">The mediator instance.</param>
+    /// <param name="logger">The logger instance.</param>
     public PredictionsController(IMediator mediator, ILogger<PredictionsController> logger)
     {
         _mediator = mediator;

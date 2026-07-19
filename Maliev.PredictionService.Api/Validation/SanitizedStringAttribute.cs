@@ -30,6 +30,12 @@ public partial class SanitizedStringAttribute : ValidationAttribute
     [GeneratedRegex(@"^[a-zA-Z0-9\s\-_.]+$")]
     private static partial Regex SafeCharactersRegex();
 
+    /// <summary>
+    /// Validates the string input.
+    /// </summary>
+    /// <param name="value">The value to validate.</param>
+    /// <param name="validationContext">The validation context.</param>
+    /// <returns>A validation result.</returns>
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
         if (value == null)

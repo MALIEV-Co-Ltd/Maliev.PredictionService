@@ -27,50 +27,67 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
                     b.Property<string>("Algorithm")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("algorithm");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("created_by");
 
                     b.Property<DateTime?>("DeploymentDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deployment_date");
 
                     b.Property<string>("FilePath")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("file_path");
 
                     b.Property<string>("Metadata")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
 
                     b.Property<string>("ModelType")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("model_type");
+
+                    b.Property<string>("PerformanceMetrics")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("performance_metrics");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("status");
 
                     b.Property<DateTime>("TrainingDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("training_date");
 
                     b.Property<Guid?>("TrainingJobId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("training_job_id");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
 
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "ModelVersion", "Maliev.PredictionService.Domain.Entities.MLModel.ModelVersion#ModelVersion", b1 =>
                         {
@@ -89,13 +106,15 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                                 .HasColumnName("version_patch");
                         });
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("p_k_ml_models");
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_ml_models_created_at");
 
                     b.HasIndex("TrainingJobId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("i_x_ml_models_training_job_id");
 
                     b.HasIndex("ModelType", "Status")
                         .HasDatabaseName("ix_ml_models_type_status");
@@ -107,59 +126,74 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
                     b.Property<string>("ActualOutcome")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("actual_outcome");
 
                     b.Property<DateTime?>("ActualOutcomeReceivedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("actual_outcome_received_at");
 
                     b.Property<string>("CacheStatus")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("cache_status");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("error_message");
 
                     b.Property<string>("InputFeatures")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("input_features");
 
                     b.Property<string>("ModelType")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("model_type");
 
                     b.Property<string>("ModelVersion")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("model_version");
 
                     b.Property<string>("OutputPrediction")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("output_prediction");
 
                     b.Property<string>("RequestId")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("request_id");
 
                     b.Property<int>("ResponseTimeMs")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("response_time_ms");
 
                     b.Property<string>("TenantId")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("tenant_id");
 
                     b.Property<DateTime>("Timestamp")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp");
 
                     b.Property<string>("UserId")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("user_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("p_k_prediction_audit_logs");
 
                     b.HasIndex("ActualOutcomeReceivedAt")
                         .HasDatabaseName("ix_prediction_audit_logs_actual_outcome")
@@ -184,52 +218,66 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("created_by");
 
                     b.Property<string>("DataQualityMetrics")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("data_quality_metrics");
 
                     b.Property<string>("DatasetHash")
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("dataset_hash");
 
                     b.Property<DateTime>("DateRangeEnd")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_range_end");
 
                     b.Property<DateTime>("DateRangeStart")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_range_start");
 
                     b.Property<string>("FeatureColumns")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("feature_columns");
 
                     b.Property<string>("FilePath")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("file_path");
 
                     b.Property<string>("ModelType")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("model_type");
 
                     b.Property<int>("RecordCount")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("record_count");
 
                     b.Property<string>("TargetColumn")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("target_column");
 
                     b.Property<Guid?>("TrainingJobId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("training_job_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("p_k_training_datasets");
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_training_datasets_created_at");
@@ -241,7 +289,8 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                         .HasDatabaseName("ix_training_datasets_model_type");
 
                     b.HasIndex("TrainingJobId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("i_x_training_datasets_training_job_id");
 
                     b.ToTable("training_datasets", "training");
                 });
@@ -250,51 +299,65 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_time");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("error_message");
 
                     b.Property<string>("Hyperparameters")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("hyperparameters");
 
                     b.Property<string>("Logs")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("logs");
 
                     b.Property<Guid?>("ModelId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("model_id");
 
                     b.Property<string>("ModelType")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("model_type");
 
                     b.Property<DateTime>("StartTime")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_time");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("status");
 
                     b.Property<Guid?>("TrainingDatasetId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("training_dataset_id");
 
                     b.Property<string>("TriggeredBy")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("triggered_by");
 
                     b.Property<string>("TriggeredByUserId")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("triggered_by_user_id");
 
                     b.Property<string>("ValidationResults")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasColumnName("validation_results");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("p_k_training_jobs");
 
                     b.HasIndex("ModelType")
                         .HasDatabaseName("ix_training_jobs_model_type");
@@ -313,41 +376,8 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                     b.HasOne("Maliev.PredictionService.Domain.Entities.TrainingJob", "TrainingJob")
                         .WithOne("Model")
                         .HasForeignKey("Maliev.PredictionService.Domain.Entities.MLModel", "TrainingJobId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.OwnsOne("Maliev.PredictionService.Domain.ValueObjects.PerformanceMetrics", "PerformanceMetrics", b1 =>
-                        {
-                            b1.Property<Guid>("MLModelId");
-
-                            b1.Property<double?>("AUC");
-
-                            b1.Property<double?>("F1Score");
-
-                            b1.Property<double?>("MAE");
-
-                            b1.Property<double?>("MAPE");
-
-                            b1.Property<double?>("Precision");
-
-                            b1.Property<double?>("RMSE");
-
-                            b1.Property<double?>("RSquared");
-
-                            b1.Property<double?>("Recall");
-
-                            b1.HasKey("MLModelId");
-
-                            b1.ToTable("ml_models", "ml_models");
-
-                            b1
-                                .ToJson("PerformanceMetrics")
-                                .HasColumnType("jsonb");
-
-                            b1.WithOwner()
-                                .HasForeignKey("MLModelId");
-                        });
-
-                    b.Navigation("PerformanceMetrics");
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("f_k_ml_models_training_jobs_training_job_id");
 
                     b.Navigation("TrainingJob");
                 });
@@ -357,7 +387,8 @@ namespace Maliev.PredictionService.Infrastructure.Migrations
                     b.HasOne("Maliev.PredictionService.Domain.Entities.TrainingJob", "TrainingJob")
                         .WithOne("TrainingDataset")
                         .HasForeignKey("Maliev.PredictionService.Domain.Entities.TrainingDataset", "TrainingJobId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("f_k_training_datasets_training_jobs_training_job_id");
 
                     b.Navigation("TrainingJob");
                 });
