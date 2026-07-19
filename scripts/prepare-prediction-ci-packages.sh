@@ -2,8 +2,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-messaging_source="${MESSAGING_SOURCE:-$repo_root/.ci-sources/messaging-contracts}"
-defaults_source="${SERVICE_DEFAULTS_SOURCE:-$repo_root/.ci-sources/aspire}"
+messaging_source="${MESSAGING_SOURCE:-$repo_root/.ci-sources/Maliev.MessagingContracts}"
+defaults_source="${SERVICE_DEFAULTS_SOURCE:-$repo_root/.ci-sources/Maliev.Aspire}"
 output_dir="${CI_PACKAGE_OUTPUT:-$repo_root/.ci-packages}"
 messaging_version="${SHARED_LIBRARY_VERSION:-1.0.96-alpha}"
 service_defaults_version="${SERVICE_DEFAULTS_VERSION:-1.0.89-alpha}"
