@@ -2,7 +2,7 @@
 
 ARG dependency_restore_stage=restore-private
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build-base
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build-base
 ARG SHARED_LIBRARY_VERSION=1.0.96-alpha
 ARG SERVICE_DEFAULTS_VERSION=1.0.89-alpha
 ENV GITHUB_ACTIONS=true
